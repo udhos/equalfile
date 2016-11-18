@@ -111,11 +111,11 @@ func compareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 	if size < 1 {
 		return false, fmt.Errorf("insufficient buffer size")
 	}
+
 	buf1 := buf[:size]
 	buf2 := buf[size:]
 	eof1 := false
 	eof2 := false
-
 	var readSize int64
 
 	for !eof1 && !eof2 {
