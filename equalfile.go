@@ -52,10 +52,58 @@ func CompareReader(r1, r2 io.Reader) (bool, error) {
 	return CompareReaderBufLimit(r1, r2, createBuf(), DEFAULT_MAX_SIZE)
 }
 
+var (
+	debug     bool
+	readCount int
+	readMin   int
+	readMax   int
+	readSum   int64
+)
+
+func read(r io.Reader, buf []byte) (int, error) {
+	n, err := r.Read(buf)
+
+	if debug {
+		readCount++
+		readSum += int64(n)
+		if n < readMin {
+			readMin = n
+		}
+		if n > readMax {
+			readMax = n
+		}
+	}
+
+	return n, err
+}
+
 // CompareReaderBufLimit: verify that two readers provide same content
 // You must provide a pre-allocated memory buffer.
 // You must provide the maximum number of bytes read.
 func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
+
+	// debug
+	if debug {
+		readCount = 0
+		readMin = 2000000000
+		readMax = 0
+		readSum = 0
+	}
+
+	equal, err := compareReaderBufLimit(r1, r2, buf, maxSize)
+
+	if debug {
+		fmt.Printf("DEBUG compareReaderBufLimit: readCount=%d readMin=%d readMax=%d readSum=%d\n", readCount, readMin, readMax, readSum)
+	}
+
+	return equal, err
+}
+
+// CompareReaderBufLimit: verify that two readers provide same content
+// You must provide a pre-allocated memory buffer.
+// You must provide the maximum number of bytes read.
+func compareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
+
 	size := len(buf) / 2
 	if size < 1 {
 		return false, fmt.Errorf("insufficient buffer size")
@@ -68,7 +116,7 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 	var readSize int64
 
 	for !eof1 && !eof2 {
-		n1, err1 := r1.Read(buf1)
+		n1, err1 := read(r1, buf1)
 		switch err1 {
 		case io.EOF:
 			eof1 = true
@@ -77,7 +125,7 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 			return false, err1
 		}
 
-		n2, err2 := r2.Read(buf2)
+		n2, err2 := read(r2, buf2)
 		switch err2 {
 		case io.EOF:
 			eof2 = true

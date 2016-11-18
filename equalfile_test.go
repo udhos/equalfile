@@ -10,15 +10,26 @@ const (
 	EXPECT_UNEQUAL = 2
 )
 
-func TestCompare1(t *testing.T) {
+func TestCompareBufBroken(t *testing.T) {
+	debug = true
 	var limit int64 = 1000000
-
 	compare(t, limit, nil, "/etc/passwd", "/etc/passwd", EXPECT_ERROR)
 	compare(t, limit, make([]byte, 0), "/etc/passwd", "/etc/passwd", EXPECT_ERROR)
 	compare(t, limit, make([]byte, 1), "/etc/passwd", "/etc/passwd", EXPECT_ERROR)
 	compare(t, limit, make([]byte, 2), "/etc/passwd", "/etc/passwd", EXPECT_EQUAL)
+}
 
-	buf := make([]byte, 100)
+func TestCompareBufSmall(t *testing.T) {
+	debug = true
+	batch(t, 1000000, make([]byte, 10))
+}
+
+func TestCompareBufLarge(t *testing.T) {
+	debug = true
+	batch(t, 100000000, make([]byte, 10000000))
+}
+
+func batch(t *testing.T, limit int64, buf []byte) {
 	compare(t, limit, buf, "/etc", "/etc", EXPECT_ERROR)
 	compare(t, limit, buf, "/etc/ERROR", "/etc/passwd", EXPECT_ERROR)
 	compare(t, limit, buf, "/etc/passwd", "/etc/ERROR", EXPECT_ERROR)
