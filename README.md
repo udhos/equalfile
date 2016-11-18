@@ -1,4 +1,4 @@
-[![GoDoc][https://godoc.org/github.com/udhos/equalfile](https://godoc.org/github.com/udhos/equalfile?status.svg)]
+[![GoDoc](https://godoc.org/github.com/udhos/equalfile?status.svg)](http://godoc.org/github.com/udhos/equalfile)
 [![Go Report Card](https://goreportcard.com/badge/github.com/udhos/equalfile)](https://goreportcard.com/report/github.com/udhos/equalfile)
 
 About Equalfile 
