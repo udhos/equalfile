@@ -104,6 +104,10 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 // You must provide the maximum number of bytes read.
 func compareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
 
+	if maxSize < 1 {
+		return false, fmt.Errorf("nonpositive max size")
+	}
+
 	size := len(buf) / 2
 	if size < 1 {
 		return false, fmt.Errorf("insufficient buffer size")

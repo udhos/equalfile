@@ -10,6 +10,15 @@ const (
 	EXPECT_UNEQUAL = 2
 )
 
+func TestCompareLimitBroken(t *testing.T) {
+	debug = true
+	buf := make([]byte, 1000)
+	compare(t, -1, nil, "/etc/passwd", "/etc/passwd", EXPECT_ERROR)
+	compare(t, 0, buf, "/etc/passwd", "/etc/passwd", EXPECT_ERROR)
+	compare(t, 1, buf, "/etc/passwd", "/etc/passwd", EXPECT_ERROR) // will reach 1-byte limit
+	compare(t, 1000000, buf, "/etc/passwd", "/etc/passwd", EXPECT_EQUAL)
+}
+
 func TestCompareBufBroken(t *testing.T) {
 	debug = true
 	var limit int64 = 1000000
@@ -44,17 +53,17 @@ func compare(t *testing.T, limit int64, buf []byte, path1, path2 string, expect 
 	equal, err := CompareFileBufLimit(path1, path2, buf, limit)
 	if err != nil {
 		if expect != EXPECT_ERROR {
-			t.Errorf("compare: unexpected error: CompareFile(%s,%s): %v", path1, path2, err)
+			t.Errorf("compare: unexpected error: CompareFileBufLimit(%s,%s,%d,%d): %v", path1, path2, limit, len(buf), err)
 		}
 		return
 	}
 	if equal {
 		if expect != EXPECT_EQUAL {
-			t.Errorf("compare: unexpected equal: CompareFile(%s,%s)", path1, path2)
+			t.Errorf("compare: unexpected equal: CompareFileBufLimit(%s,%s,%d,%d)", path1, path2, limit, len(buf))
 		}
 		return
 	}
 	if expect != EXPECT_UNEQUAL {
-		t.Errorf("compare: unexpected unequal: CompareFile(%s,%s)", path1, path2)
+		t.Errorf("compare: unexpected unequal: CompareFileBufLimit(%s,%s,%d,%d)", path1, path2, limit, len(buf))
 	}
 }

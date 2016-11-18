@@ -18,7 +18,3 @@ simple() {
 [ -x "$s" ] && simple
 
 go test -v
-
-
-
-
