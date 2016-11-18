@@ -1,5 +1,6 @@
 [![GoDoc](https://godoc.org/github.com/udhos/equalfile?status.svg)](http://godoc.org/github.com/udhos/equalfile)
 [![Go Report Card](https://goreportcard.com/badge/github.com/udhos/equalfile)](https://goreportcard.com/report/github.com/udhos/equalfile)
+[![Build Status](https://travis-ci.org/udhos/equalfile.svg?branch=master)](https://travis-ci.org/udhos/equalfile)
 
 About Equalfile 
 ===============
