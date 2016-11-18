@@ -17,4 +17,13 @@ simple() {
 }
 [ -x "$s" ] && simple
 
+# go get github.com/golang/lint/golint
+l=$GOPATH/bin/golint
+lint() {
+    # golint cant handle source files from multiple packages
+    $l *.go
+    $l equal/*.go
+}
+[ -x "$l" ] && lint
+
 go test -v

@@ -7,17 +7,17 @@ import (
 	"os"
 )
 
-const DEFAULT_MAX_SIZE = 10000000000 // Only the first 10^10 bytes are compared.
+const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
 
-// CompareFile: verify that files with names path1, path2 have identical contents
+// CompareFile verifies that files with names path1, path2 have identical contents.
 // Only the first 10^10 bytes are compared.
 func CompareFile(path1, path2 string) (bool, error) {
-	return CompareFileBufLimit(path1, path2, createBuf(), DEFAULT_MAX_SIZE)
+	return CompareFileBufLimit(path1, path2, createBuf(), defaultMaxSize)
 }
 
-// CompareFileBufLimit: verify that files with names path1, path2 have same contents
+// CompareFileBufLimit verifies that files with names path1, path2 have same contents.
 // You must provide a pre-allocated memory buffer.
-// You must provide the maximum number of bytes read.
+// You must provide the maximum number of bytes to compare.
 func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, error) {
 	r1, openErr1 := os.Open(path1)
 	if openErr1 != nil {
@@ -46,10 +46,10 @@ func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, 
 	return CompareReaderBufLimit(r1, r2, buf, maxSize)
 }
 
-// CompareReader: verify that two readers provide same content
+// CompareReader verifies that two readers provide same content.
 // Only the first 10^10 bytes are compared.
 func CompareReader(r1, r2 io.Reader) (bool, error) {
-	return CompareReaderBufLimit(r1, r2, createBuf(), DEFAULT_MAX_SIZE)
+	return CompareReaderBufLimit(r1, r2, createBuf(), defaultMaxSize)
 }
 
 var (
@@ -77,12 +77,11 @@ func read(r io.Reader, buf []byte) (int, error) {
 	return n, err
 }
 
-// CompareReaderBufLimit: verify that two readers provide same content
+// CompareReaderBufLimit verifies that two readers provide same content.
 // You must provide a pre-allocated memory buffer.
-// You must provide the maximum number of bytes read.
+// You must provide the maximum number of bytes to compare.
 func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
 
-	// debug
 	if debug {
 		readCount = 0
 		readMin = 2000000000
@@ -99,9 +98,9 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 	return equal, err
 }
 
-// CompareReaderBufLimit: verify that two readers provide same content
+// CompareReaderBufLimit: verifies that two readers provide same content.
 // You must provide a pre-allocated memory buffer.
-// You must provide the maximum number of bytes read.
+// You must provide the maximum number of bytes to compare.
 func compareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
 
 	if maxSize < 1 {
