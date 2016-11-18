@@ -1,4 +1,6 @@
-About Equalfile
+[![Go Report Card](https://goreportcard.com/badge/github.com/udhos/equalfile)](https://goreportcard.com/report/github.com/udhos/equalfile)
+
+About Equalfile 
 ===============
 
 Equalfile is a pure Go package for comparing files.
