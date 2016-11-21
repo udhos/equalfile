@@ -92,7 +92,7 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 	equal, err := compareReaderBufLimit(r1, r2, buf, maxSize)
 
 	if debug {
-		fmt.Printf("DEBUG compareReaderBufLimit: readCount=%d readMin=%d readMax=%d readSum=%d\n", readCount, readMin, readMax, readSum)
+		fmt.Printf("DEBUG compareReaderBufLimit(%d,%d): readCount=%d readMin=%d readMax=%d readSum=%d\n", len(buf), maxSize, readCount, readMin, readMax, readSum)
 	}
 
 	return equal, err
@@ -138,7 +138,7 @@ func compareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 		}
 
 		if n1 != n2 {
-			return false, nil
+			return false, fmt.Errorf("compareReaderBufLimit: internal failure: readers returned different sizes")
 		}
 
 		if !bytes.Equal(buf1[:n1], buf2[:n2]) {
