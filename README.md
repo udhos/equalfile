@@ -1,6 +1,7 @@
 [![GoDoc](https://godoc.org/github.com/udhos/equalfile?status.svg)](http://godoc.org/github.com/udhos/equalfile)
 [![Go Report Card](https://goreportcard.com/badge/github.com/udhos/equalfile)](https://goreportcard.com/report/github.com/udhos/equalfile)
-[![Build Status](https://travis-ci.org/udhos/equalfile.svg?branch=master)](https://travis-ci.org/udhos/equalfile)
+[![Travis Build Status](https://travis-ci.org/udhos/equalfile.svg?branch=master)](https://travis-ci.org/udhos/equalfile)
+[![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/udhos/equalfile?branch=master&svg=true)](https://ci.appveyor.com/project/udhos/equalfile)
 
 About Equalfile 
 ===============
