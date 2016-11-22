@@ -15,8 +15,8 @@ install:
 
 build_script:
   - go test -v
-  - go install
-  - go install github.com/udhos/equalfile/equal
+  - go build github.com/udhos/equalfile
+  - go build -o equal-app github.com/udhos/equalfile/equal
       
 test: off
 
