@@ -6,6 +6,9 @@ branches:
   only:
     - master
 
+environment:
+  GOPATH: c:\gopath
+
 install:
   - go get github.com/golang/lint/golint
   - go get honnef.co/go/simple/cmd/gosimple
