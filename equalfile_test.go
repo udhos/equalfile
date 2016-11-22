@@ -53,6 +53,10 @@ func TestBrokenReaders(t *testing.T) {
 	r1 = &testReader{label: "test3 r1", chunkSize: chunk, totalSize: total, lastByte: '0'}
 	r2 = &testReader{label: "test3 r2", chunkSize: chunk, totalSize: total, lastByte: '1'}
 	compareReader(t, limit, buf, r1, r2, expectUnequal)
+
+	r1 = &testReader{label: "test4 r1", chunkSize: chunk, totalSize: total}
+	r2 = &testReader{label: "test4 r2", chunkSize: chunk, totalSize: total + 1}
+	compareReader(t, limit, buf, r1, r2, expectUnequal)
 }
 
 type testReader struct {
