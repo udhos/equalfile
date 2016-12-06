@@ -3,6 +3,7 @@
 [![Travis Build Status](https://travis-ci.org/udhos/equalfile.svg?branch=master)](https://travis-ci.org/udhos/equalfile)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/udhos/equalfile?branch=master&svg=true)](https://ci.appveyor.com/project/udhos/equalfile)
 [![Circle CI](https://circleci.com/gh/udhos/equalfile.svg?style=shield&circle-token=:circle-token)](https://circleci.com/gh/udhos/equalfile)
+[![gocover](http://gocover.io/_badge/github.com/udhos/equalfile)](http://gocover.io/github.com/udhos/equalfile)
 
 About Equalfile 
 ===============
