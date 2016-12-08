@@ -24,7 +24,7 @@ func main() {
 
 	if equal {
 		fmt.Println("equal: files match")
-		os.Exit(0)
+		return // cleaner than os.Exit(0)
 	}
 
 	fmt.Println("equal: files differ")
