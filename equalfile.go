@@ -11,6 +11,11 @@ import (
 
 const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
 
+type Options struct {
+	Debug         bool // enable debugging to stdout
+	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
+}
+
 // CompareFile verifies that files with names path1, path2 have identical contents.
 // Only the first 10^10 bytes are compared.
 func CompareFile(path1, path2 string) (bool, error) {
@@ -45,7 +50,7 @@ func newHash(path string, sum []byte, e error) ([]byte, error) {
 
 	hashTable[path] = hashSum{sum, e}
 
-	if debug {
+	if options.Debug {
 		fmt.Printf("newHash[%s]=%v: error=[%v]\n", path, hex.EncodeToString(sum), e)
 	}
 
@@ -74,7 +79,7 @@ func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, 
 			return true, nil // accept hash match without byte-by-byte comparison
 		}
 		// do byte-by-byte comparison
-		if debug {
+		if options.Debug {
 			fmt.Printf("CompareFileBufLimit(%s,%s): hash match, will compare bytes\n", path1, path2)
 		}
 	}
@@ -103,6 +108,13 @@ func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, 
 		return false, nil
 	}
 
+	if !options.ForceFileRead {
+		// shortcut: ask the filesystem: are these files the same? (link, pathname, etc)
+		if os.SameFile(info1, info2) {
+			return true, nil
+		}
+	}
+
 	return CompareReaderBufLimit(r1, r2, buf, maxSize)
 }
 
@@ -113,7 +125,8 @@ func CompareReader(r1, r2 io.Reader) (bool, error) {
 }
 
 var (
-	debug     bool
+	options Options
+
 	readCount int
 	readMin   int
 	readMax   int
@@ -148,8 +161,8 @@ func CompareMultiple(h hash.Hash, compareOnMatch bool) {
 	requireMultiple()
 }
 
-func Debug(enable bool) {
-	debug = enable
+func SetOptions(o Options) {
+	options = o
 }
 
 func multipleMode() bool {
@@ -171,7 +184,7 @@ func rejectMultiple() {
 func read(r io.Reader, buf []byte) (int, error) {
 	n, err := r.Read(buf)
 
-	if debug {
+	if options.Debug {
 		readCount++
 		readSum += int64(n)
 		if n < readMin {
@@ -190,7 +203,7 @@ func read(r io.Reader, buf []byte) (int, error) {
 // You must provide the maximum number of bytes to compare.
 func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, error) {
 
-	if debug {
+	if options.Debug {
 		readCount = 0
 		readMin = 2000000000
 		readMax = 0
@@ -199,7 +212,7 @@ func CompareReaderBufLimit(r1, r2 io.Reader, buf []byte, maxSize int64) (bool, e
 
 	equal, err := compareReaderBufLimit(r1, r2, buf, maxSize)
 
-	if debug {
+	if options.Debug {
 		fmt.Printf("DEBUG compareReaderBufLimit(%d,%d): readCount=%d readMin=%d readMax=%d readSum=%d\n", len(buf), maxSize, readCount, readMin, readMax, readSum)
 	}
 

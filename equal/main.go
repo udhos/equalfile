@@ -25,11 +25,11 @@ func main() {
 
 func compareFiles(files []string) bool {
 
-	debug := false
+	options := equalfile.Options{}
 
 	if str := os.Getenv("DEBUG"); str != "" {
-		debug = true
-		equalfile.Debug(debug)
+		options.Debug = true
+		equalfile.SetOptions(options)
 	}
 
 	if len(files) > 2 {
@@ -44,20 +44,20 @@ func compareFiles(files []string) bool {
 		for _, p := range files[i+1:] {
 			equal, err := equalfile.CompareFile(p0, p)
 			if err != nil {
-				if debug {
+				if options.Debug {
 					fmt.Printf("equal(%s,%s): error: %v\n", p0, p, err)
 				}
 				match = false
 				continue
 			}
 			if !equal {
-				if debug {
+				if options.Debug {
 					fmt.Printf("equal(%s,%s): files differ\n", p0, p)
 				}
 				match = false
 				continue
 			}
-			if debug {
+			if options.Debug {
 				fmt.Printf("equal(%s,%s): files match\n", p0, p)
 			}
 		}

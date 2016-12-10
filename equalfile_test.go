@@ -46,7 +46,7 @@ func (r *testReader) Read(buf []byte) (int, error) {
 
 	n, err := testRead(r, buf)
 
-	if debug {
+	if options.Debug {
 		fmt.Printf("DEBUG testReader.Read: label=%s chunk=%d buf=%d total=%d last=%q size=%d error=%v\n", r.label, r.chunkSize, len(buf), r.totalSize, r.lastByte, n, err)
 	}
 

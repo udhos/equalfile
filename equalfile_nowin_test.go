@@ -8,6 +8,7 @@ import (
 )
 
 func TestCompareLimitBroken(t *testing.T) {
+	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	buf := make([]byte, 1000)
@@ -18,6 +19,7 @@ func TestCompareLimitBroken(t *testing.T) {
 }
 
 func TestCompareBufBroken(t *testing.T) {
+	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	var limit int64 = 1000000
@@ -28,6 +30,7 @@ func TestCompareBufBroken(t *testing.T) {
 }
 
 func TestCompareBufSmall(t *testing.T) {
+	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	batch(t, 1000000, make([]byte, 10))
@@ -40,6 +43,7 @@ func TestCompareBufLarge(t *testing.T) {
 }
 
 func TestCompareLimitBrokenMultiple(t *testing.T) {
+	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	CompareMultiple(sha256.New(), true)
@@ -52,6 +56,7 @@ func TestCompareLimitBrokenMultiple(t *testing.T) {
 }
 
 func TestCompareBufBrokenMultiple(t *testing.T) {
+	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	CompareMultiple(sha256.New(), true)
@@ -80,6 +85,7 @@ func TestCompareBufLargeMultiple(t *testing.T) {
 }
 
 func batch(t *testing.T, limit int64, buf []byte) {
+	SetOptions(Options{ForceFileRead: true})
 	compare(t, limit, buf, "/etc", "/etc", expectError)
 	compare(t, limit, buf, "/etc/ERROR", "/etc/passwd", expectError)
 	compare(t, limit, buf, "/etc/passwd", "/etc/ERROR", expectError)
@@ -91,7 +97,6 @@ func batch(t *testing.T, limit int64, buf []byte) {
 }
 
 func compare(t *testing.T, limit int64, buf []byte, path1, path2 string, expect int) {
-	//t.Logf("compare: [%s] [%s]", path1, path2)
 	equal, err := CompareFileBufLimit(path1, path2, buf, limit)
 	if err != nil {
 		if expect != expectError {
