@@ -74,10 +74,9 @@ func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, 
 			return true, nil // accept hash match without byte-by-byte comparison
 		}
 		// do byte-by-byte comparison
-	}
-
-	if debug {
-		fmt.Printf("CompareFileBufLimit(%s,%s): hash match, will compare bytes\n", path1, path2)
+		if debug {
+			fmt.Printf("CompareFileBufLimit(%s,%s): hash match, will compare bytes\n", path1, path2)
+		}
 	}
 
 	r1, openErr1 := os.Open(path1)
