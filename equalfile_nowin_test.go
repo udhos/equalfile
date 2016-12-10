@@ -30,7 +30,6 @@ func TestCompareBufBroken(t *testing.T) {
 }
 
 func TestCompareBufSmall(t *testing.T) {
-	SetOptions(Options{ForceFileRead: true})
 	CompareSingle()
 	rejectMultiple()
 	batch(t, 1000000, make([]byte, 10))
