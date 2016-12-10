@@ -130,7 +130,7 @@ type hashSum struct {
 	err    error
 }
 
-// CompareSingle puts the package context in single comparison mode.
+// CompareSingle puts package in single comparison mode.
 // Single comparison is the default mode.
 // In single comparison mode, files are always compared byte-by-byte.
 func CompareSingle() {
@@ -139,7 +139,7 @@ func CompareSingle() {
 	rejectMultiple()
 }
 
-// CompareMultiple puts the package context in multiple comparison mode.
+// CompareMultiple puts package in multiple comparison mode.
 // In multiple comparison mode, file hashes are used to speed up repeated comparisons of the same file.
 // Use compareOnMatch to control byte-by-byte comparison when the hashes do match.
 func CompareMultiple(h hash.Hash, compareOnMatch bool) {
