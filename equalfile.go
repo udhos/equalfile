@@ -2,7 +2,9 @@ package equalfile
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 )
@@ -15,10 +17,69 @@ func CompareFile(path1, path2 string) (bool, error) {
 	return CompareFileBufLimit(path1, path2, createBuf(), defaultMaxSize)
 }
 
+func getHash(path string, maxSize int64) ([]byte, error) {
+	h, found := hashTable[path]
+	if found {
+		return h.result, h.err
+	}
+
+	f, openErr := os.Open(path)
+	if openErr != nil {
+		return nil, openErr
+	}
+	defer f.Close()
+
+	sum := make([]byte, hashType.Size())
+	hashType.Reset()
+	n, copyErr := io.CopyN(hashType, f, maxSize)
+	copy(sum, hashType.Sum(nil))
+
+	if copyErr == io.EOF && n < maxSize {
+		copyErr = nil
+	}
+
+	return newHash(path, sum, copyErr)
+}
+
+func newHash(path string, sum []byte, e error) ([]byte, error) {
+
+	hashTable[path] = hashSum{sum, e}
+
+	if debug {
+		fmt.Printf("newHash[%s]=%v: error=[%v]\n", path, hex.EncodeToString(sum), e)
+	}
+
+	return sum, e
+}
+
 // CompareFileBufLimit verifies that files with names path1, path2 have same contents.
 // You must provide a pre-allocated memory buffer.
 // You must provide the maximum number of bytes to compare.
 func CompareFileBufLimit(path1, path2 string, buf []byte, maxSize int64) (bool, error) {
+
+	if multipleMode() {
+		h1, err1 := getHash(path1, maxSize)
+		if err1 != nil {
+			return false, err1
+		}
+		h2, err2 := getHash(path2, maxSize)
+		if err2 != nil {
+			return false, err2
+		}
+		if !bytes.Equal(h1, h2) {
+			return false, nil // hashes mismatch
+		}
+		// hashes match
+		if !hashMatchCompare {
+			return true, nil // accept hash match without byte-by-byte comparison
+		}
+		// do byte-by-byte comparison
+	}
+
+	if debug {
+		fmt.Printf("CompareFileBufLimit(%s,%s): hash match, will compare bytes\n", path1, path2)
+	}
+
 	r1, openErr1 := os.Open(path1)
 	if openErr1 != nil {
 		return false, openErr1
@@ -58,7 +119,55 @@ var (
 	readMin   int
 	readMax   int
 	readSum   int64
+
+	hashType         hash.Hash
+	hashTable        map[string]hashSum
+	hashMatchCompare bool
 )
+
+type hashSum struct {
+	result []byte
+	err    error
+}
+
+// CompareSingle puts the package context in single comparison mode.
+// Single comparison is the default mode.
+// In single comparison mode, files are always compared byte-by-byte.
+func CompareSingle() {
+	hashType = nil
+	hashTable = nil
+	rejectMultiple()
+}
+
+// CompareMultiple puts the package context in multiple comparison mode.
+// In multiple comparison mode, file hashes are used to speed up repeated comparisons of the same file.
+// Use compareOnMatch to control byte-by-byte comparison when the hashes do match.
+func CompareMultiple(h hash.Hash, compareOnMatch bool) {
+	hashType = h
+	hashTable = map[string]hashSum{}
+	hashMatchCompare = compareOnMatch
+	requireMultiple()
+}
+
+func Debug(enable bool) {
+	debug = enable
+}
+
+func multipleMode() bool {
+	return hashType != nil && hashTable != nil
+}
+
+func requireMultiple() {
+	if !multipleMode() {
+		panic("refusing to run in single mode")
+	}
+}
+
+func rejectMultiple() {
+	if multipleMode() {
+		panic("refusing to run in multiple mode")
+	}
+}
 
 func read(r io.Reader, buf []byte) (int, error) {
 	n, err := r.Read(buf)

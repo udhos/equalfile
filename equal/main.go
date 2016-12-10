@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 
@@ -8,25 +9,59 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Printf("usage: equal file1 file2\n")
+	if len(os.Args) < 3 {
+		fmt.Printf("usage: equal file1 file2 [...fileN]\n")
 		os.Exit(2)
 	}
 
-	file1 := os.Args[1]
-	file2 := os.Args[2]
-
-	equal, err := equalfile.CompareFile(file1, file2)
-	if err != nil {
-		fmt.Printf("equal: error: %v\n", err)
-		os.Exit(3)
-	}
-
-	if equal {
+	if compareFiles(os.Args[1:]) {
 		fmt.Println("equal: files match")
 		return // cleaner than os.Exit(0)
 	}
 
 	fmt.Println("equal: files differ")
 	os.Exit(1)
+}
+
+func compareFiles(files []string) bool {
+
+	debug := false
+
+	if str := os.Getenv("DEBUG"); str != "" {
+		debug = true
+		equalfile.Debug(debug)
+	}
+
+	if len(files) > 2 {
+		// create multiple comparison context
+		equalfile.CompareMultiple(sha256.New(), true)
+	}
+
+	match := true
+
+	for i := 0; i < len(files)-1; i++ {
+		p0 := files[i]
+		for _, p := range files[i+1:] {
+			equal, err := equalfile.CompareFile(p0, p)
+			if err != nil {
+				if debug {
+					fmt.Printf("equal(%s,%s): error: %v\n", p0, p, err)
+				}
+				match = false
+				continue
+			}
+			if !equal {
+				if debug {
+					fmt.Printf("equal(%s,%s): files differ\n", p0, p)
+				}
+				match = false
+				continue
+			}
+			if debug {
+				fmt.Printf("equal(%s,%s): files match\n", p0, p)
+			}
+		}
+	}
+
+	return match
 }

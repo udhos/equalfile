@@ -3,10 +3,13 @@
 package equalfile
 
 import (
+	"crypto/sha256"
 	"testing"
 )
 
 func TestCompareLimitBroken(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
 	buf := make([]byte, 1000)
 	compare(t, -1, nil, "/etc/passwd", "/etc/passwd", expectError)
 	compare(t, 0, buf, "/etc/passwd", "/etc/passwd", expectError)
@@ -15,6 +18,8 @@ func TestCompareLimitBroken(t *testing.T) {
 }
 
 func TestCompareBufBroken(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
 	var limit int64 = 1000000
 	compare(t, limit, nil, "/etc/passwd", "/etc/passwd", expectError)
 	compare(t, limit, make([]byte, 0), "/etc/passwd", "/etc/passwd", expectError)
@@ -23,10 +28,54 @@ func TestCompareBufBroken(t *testing.T) {
 }
 
 func TestCompareBufSmall(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
 	batch(t, 1000000, make([]byte, 10))
 }
 
 func TestCompareBufLarge(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
+	batch(t, 100000000, make([]byte, 10000000))
+}
+
+func TestCompareLimitBrokenMultiple(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
+	CompareMultiple(sha256.New(), true)
+	requireMultiple()
+	buf := make([]byte, 1000)
+	compare(t, -1, nil, "/etc/passwd", "/etc/passwd", expectError)
+	compare(t, 0, buf, "/etc/passwd", "/etc/passwd", expectError)
+	compare(t, 1, buf, "/etc/passwd", "/etc/passwd", expectError) // will reach 1-byte limit
+	compare(t, 1000000, buf, "/etc/passwd", "/etc/passwd", expectEqual)
+}
+
+func TestCompareBufBrokenMultiple(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
+	CompareMultiple(sha256.New(), true)
+	requireMultiple()
+	var limit int64 = 1000000
+	compare(t, limit, nil, "/etc/passwd", "/etc/passwd", expectError)
+	compare(t, limit, make([]byte, 0), "/etc/passwd", "/etc/passwd", expectError)
+	compare(t, limit, make([]byte, 1), "/etc/passwd", "/etc/passwd", expectError)
+	compare(t, limit, make([]byte, 2), "/etc/passwd", "/etc/passwd", expectEqual)
+}
+
+func TestCompareBufSmallMultiple(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
+	CompareMultiple(sha256.New(), true)
+	requireMultiple()
+	batch(t, 1000000, make([]byte, 10))
+}
+
+func TestCompareBufLargeMultiple(t *testing.T) {
+	CompareSingle()
+	rejectMultiple()
+	CompareMultiple(sha256.New(), true)
+	requireMultiple()
 	batch(t, 100000000, make([]byte, 10000000))
 }
 
@@ -42,6 +91,7 @@ func batch(t *testing.T, limit int64, buf []byte) {
 }
 
 func compare(t *testing.T, limit int64, buf []byte, path1, path2 string, expect int) {
+	//t.Logf("compare: [%s] [%s]", path1, path2)
 	equal, err := CompareFileBufLimit(path1, path2, buf, limit)
 	if err != nil {
 		if expect != expectError {
