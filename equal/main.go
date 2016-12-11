@@ -29,12 +29,14 @@ func compareFiles(files []string) bool {
 
 	if str := os.Getenv("DEBUG"); str != "" {
 		options.Debug = true
-		equalfile.SetOptions(options)
 	}
 
+	var cmp *equalfile.Cmp
+
 	if len(files) > 2 {
-		// create multiple comparison context
-		equalfile.CompareMultiple(sha256.New(), true)
+		cmp = equalfile.NewMultiple(nil, options, sha256.New(), true)
+	} else {
+		cmp = equalfile.New(nil, options)
 	}
 
 	match := true
@@ -42,7 +44,7 @@ func compareFiles(files []string) bool {
 	for i := 0; i < len(files)-1; i++ {
 		p0 := files[i]
 		for _, p := range files[i+1:] {
-			equal, err := equalfile.CompareFile(p0, p)
+			equal, err := cmp.CompareFile(p0, p)
 			if err != nil {
 				if options.Debug {
 					fmt.Printf("equal(%s,%s): error: %v\n", p0, p, err)
