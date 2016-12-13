@@ -46,9 +46,7 @@ func compareFiles(files []string) bool {
 		for _, p := range files[i+1:] {
 			equal, err := cmp.CompareFile(p0, p)
 			if err != nil {
-				if options.Debug {
-					fmt.Printf("equal(%s,%s): error: %v\n", p0, p, err)
-				}
+				fmt.Printf("equal(%s,%s): error: %v\n", p0, p, err)
 				match = false
 				continue
 			}

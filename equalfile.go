@@ -122,7 +122,7 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 		// do byte-by-byte comparison
 		if c.Opt.Debug {
-			fmt.Printf("CompareFileBufLimit(%s,%s): hash match, will compare bytes\n", path1, path2)
+			fmt.Printf("CompareFile(%s,%s): hash match, will compare bytes\n", path1, path2)
 		}
 	}
 
@@ -177,7 +177,7 @@ func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 	return n, err
 }
 
-// CompareReaderBufLimit verifies that two readers provide same content.
+// CompareReader verifies that two readers provide same content.
 func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 
 	if c.Opt.Debug {
@@ -187,7 +187,7 @@ func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 		c.readSum = 0
 	}
 
-	equal, err := c.compareReaderBufLimit(r1, r2)
+	equal, err := c.compareReader(r1, r2)
 
 	if c.Opt.Debug {
 		fmt.Printf("DEBUG CompareReader(%d,%d): readCount=%d readMin=%d readMax=%d readSum=%d\n",
@@ -197,7 +197,7 @@ func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 	return equal, err
 }
 
-func (c *Cmp) compareReaderBufLimit(r1, r2 io.Reader) (bool, error) {
+func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 
 	maxSize := c.Opt.MaxSize
 	if maxSize < 1 {
@@ -237,7 +237,7 @@ func (c *Cmp) compareReaderBufLimit(r1, r2 io.Reader) (bool, error) {
 		}
 
 		if n1 != n2 {
-			return false, fmt.Errorf("compareReaderBufLimit: internal failure: readers returned different sizes")
+			return false, fmt.Errorf("compareReader: internal failure: readers returned different sizes")
 		}
 
 		if !bytes.Equal(buf1[:n1], buf2[:n2]) {
