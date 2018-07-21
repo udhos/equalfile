@@ -13,6 +13,8 @@ import (
 const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
 const defaultBufSize = 20000
 
+var ErrChunkSize = fmt.Errorf("internal failure: readers returned different sizes")
+
 type Options struct {
 	Debug         bool // enable debugging to stdout
 	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
@@ -212,7 +214,12 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 	}
 
 	buf1 := buf[:size]
-	buf2 := buf[size:]
+	buf2 := buf[size : 2*size] // must force same size as buf1
+
+	if len(buf1) != len(buf2) {
+		return false, fmt.Errorf("buffer size mismatch buf1=%d buf2=%d", len(buf1), len(buf2))
+	}
+
 	eof1 := false
 	eof2 := false
 	var readSize int64
@@ -237,7 +244,8 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 		}
 
 		if n1 != n2 {
-			return false, fmt.Errorf("compareReader: internal failure: readers returned different sizes")
+			// FIXME: read again from smaller chunk
+			return false, ErrChunkSize
 		}
 
 		if !bytes.Equal(buf1[:n1], buf2[:n2]) {

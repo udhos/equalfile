@@ -3,6 +3,7 @@ package equalfile
 import (
 	"fmt"
 	"io"
+	"os"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestBrokenReaders(t *testing.T) {
 	buf := make([]byte, 4000)
 	chunk := int64(1000)
 	total := int64(10000)
-	debug := false
+	debug := os.Getenv("DEBUG") != ""
 
 	r1 := &testReader{label: "test1 r1", chunkSize: chunk, totalSize: total, debug: debug}
 	r2 := &testReader{label: "test1 r2", chunkSize: chunk + 1, totalSize: total, debug: debug}
@@ -82,22 +83,22 @@ func testRead(r *testReader, buf []byte) (int, error) {
 	return int(drainSize), nil
 }
 
-func compareReader(t *testing.T, limit int64, buf []byte, r1, r2 io.Reader, expect int, debug bool) {
+func compareReader(t *testing.T, limit int64, buf []byte, r1, r2 *testReader, expect int, debug bool) {
 	c := New(buf, Options{MaxSize: limit, Debug: debug})
 	equal, err := c.CompareReader(r1, r2)
 	if err != nil {
 		if expect != expectError {
-			t.Errorf("compare: unexpected error: CompareReader(%d,%d): %v", c.Opt.MaxSize, len(c.buf), err)
+			t.Errorf("compare: r1=%s r2=%s unexpected error: CompareReader(%d,%d): %v", r1.label, r2.label, c.Opt.MaxSize, len(c.buf), err)
 		}
 		return
 	}
 	if equal {
 		if expect != expectEqual {
-			t.Errorf("compare: unexpected equal: CompareReader(%d,%d)", c.Opt.MaxSize, len(c.buf))
+			t.Errorf("compare: r1=%s r2=%s unexpected equal: CompareReader(%d,%d)", r1.label, r2.label, c.Opt.MaxSize, len(c.buf))
 		}
 		return
 	}
 	if expect != expectUnequal {
-		t.Errorf("compare: unexpected unequal: CompareReader(%d,%d)", c.Opt.MaxSize, len(c.buf))
+		t.Errorf("compare: r1=%s r2=%s unexpected unequal: CompareReader(%d,%d)", r1.label, r2.label, c.Opt.MaxSize, len(c.buf))
 	}
 }
