@@ -13,8 +13,6 @@ import (
 const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
 const defaultBufSize = 20000
 
-var ErrChunkSize = fmt.Errorf("internal failure: readers returned different sizes")
-
 type Options struct {
 	Debug         bool // enable debugging to stdout
 	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
@@ -199,6 +197,10 @@ func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 	return equal, err
 }
 
+func readPartial(r io.Reader, buf []byte, n1, n2 int) (int, error) {
+	return n1, fmt.Errorf("readPartial FIXME WRITEME")
+}
+
 func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 
 	maxSize := c.Opt.MaxSize
@@ -243,9 +245,31 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 			return false, err2
 		}
 
+		switch {
+		case n1 < n2:
+			n, errPart := readPartial(r1, buf1, n1, n2)
+			switch errPart {
+			case io.EOF:
+				eof1 = true
+			case nil:
+			default:
+				return false, errPart
+			}
+			n1 = n
+		case n2 < n1:
+			n, errPart := readPartial(r2, buf2, n2, n1)
+			switch errPart {
+			case io.EOF:
+				eof2 = true
+			case nil:
+			default:
+				return false, errPart
+			}
+			n2 = n
+		}
+
 		if n1 != n2 {
-			// FIXME: read again from smaller chunk
-			return false, ErrChunkSize
+			return false, nil
 		}
 
 		if !bytes.Equal(buf1[:n1], buf2[:n2]) {
