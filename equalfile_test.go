@@ -24,9 +24,9 @@ func TestBrokenReaders(t *testing.T) {
 	r2 := &testReader{label: "test1 r2", chunkSize: chunk + 1, totalSize: total, debug: debug}
 	compareReader(t, limit, buf, r1, r2, expectEqual, debug)
 
-	r1 = &testReader{label: "test2 r1", chunkSize: chunk, totalSize: total, lastByte: '0', debug: debug}
-	r2 = &testReader{label: "test2 r2", chunkSize: chunk + 1, totalSize: total, lastByte: '1', debug: debug}
-	compareReader(t, limit, buf, r1, r2, expectUnequal, debug)
+	r1 = &testReader{label: "test2 r1", chunkSize: chunk + 2, totalSize: total, debug: debug}
+	r2 = &testReader{label: "test2 r2", chunkSize: chunk, totalSize: total, debug: debug}
+	compareReader(t, limit, buf, r1, r2, expectEqual, debug)
 
 	r1 = &testReader{label: "test3 r1", chunkSize: chunk, totalSize: total, debug: debug}
 	r2 = &testReader{label: "test3 r2", chunkSize: chunk, totalSize: total, debug: debug}
@@ -37,7 +37,15 @@ func TestBrokenReaders(t *testing.T) {
 	compareReader(t, limit, buf, r1, r2, expectUnequal, debug)
 
 	r1 = &testReader{label: "test5 r1", chunkSize: chunk, totalSize: total, debug: debug}
-	r2 = &testReader{label: "test5 r2", chunkSize: chunk, totalSize: total + 1, debug: debug}
+	r2 = &testReader{label: "test5 r2", chunkSize: chunk + 1, totalSize: total, debug: debug}
+	compareReader(t, limit, buf, r1, r2, expectUnequal, debug)
+
+	r1 = &testReader{label: "test6 r1", chunkSize: chunk + 2, totalSize: total, debug: debug}
+	r2 = &testReader{label: "test6 r2", chunkSize: chunk, totalSize: total, debug: debug}
+	compareReader(t, limit, buf, r1, r2, expectUnequal, debug)
+
+	r1 = &testReader{label: "test7 r1", chunkSize: chunk, totalSize: total, debug: debug}
+	r2 = &testReader{label: "test7 r2", chunkSize: chunk, totalSize: total + 1, debug: debug}
 	compareReader(t, limit, buf, r1, r2, expectUnequal, debug)
 }
 

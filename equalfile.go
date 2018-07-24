@@ -197,8 +197,15 @@ func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 	return equal, err
 }
 
-func readPartial(r io.Reader, buf []byte, n1, n2 int) (int, error) {
-	return n1, fmt.Errorf("readPartial FIXME WRITEME")
+func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
+	for n1 < n2 {
+		n, err := c.read(r, buf[n1:n2])
+		n1 += n
+		if err != nil {
+			return n1, err
+		}
+	}
+	return n1, nil
 }
 
 func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
@@ -247,7 +254,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 
 		switch {
 		case n1 < n2:
-			n, errPart := readPartial(r1, buf1, n1, n2)
+			n, errPart := readPartial(c, r1, buf1, n1, n2)
 			switch errPart {
 			case io.EOF:
 				eof1 = true
@@ -257,7 +264,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 			}
 			n1 = n
 		case n2 < n1:
-			n, errPart := readPartial(r2, buf2, n2, n1)
+			n, errPart := readPartial(c, r2, buf2, n2, n1)
 			switch errPart {
 			case io.EOF:
 				eof2 = true
