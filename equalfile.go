@@ -2,7 +2,6 @@ package equalfile
 
 import (
 	"bytes"
-	//"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"hash"
