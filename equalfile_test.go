@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +13,34 @@ const (
 	expectEqual   = 1
 	expectUnequal = 2
 )
+
+func TestReader1(t *testing.T) {
+	debug := os.Getenv("DEBUG") != ""
+	c := New(make([]byte, 4000), Options{MaxSize: int64(50000), Debug: debug})
+	r1 := strings.NewReader("wow")
+	r2 := strings.NewReader("somethingthatlong")
+	equal, err := c.CompareReader(r1, r2)
+	if equal {
+		t.Fatal("CompareReader should returns false")
+	}
+	if err != nil {
+		fmt.Println(err) // internal failure: readers returned different sizes
+	}
+}
+
+func TestReader2(t *testing.T) {
+	debug := os.Getenv("DEBUG") != ""
+	c := New(make([]byte, 2), Options{MaxSize: int64(50000), Debug: debug})
+	r1 := strings.NewReader("wow")
+	r2 := strings.NewReader("somethingthatlong")
+	equal, err := c.CompareReader(r1, r2)
+	if equal {
+		t.Fatal("CompareReader should returns false")
+	}
+	if err != nil {
+		fmt.Println(err) // <nil>
+	}
+}
 
 func TestBrokenReaders(t *testing.T) {
 	limit := int64(50000)
