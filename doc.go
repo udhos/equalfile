@@ -10,8 +10,8 @@ Comparing only two files
 
 In single mode, equalfile compares files byte-by-byte.
 
-        import "github.com/udhos/equalfile"
-        // ...
+       import "github.com/udhos/equalfile"
+       // ...
        cmp := equalfile.New(nil, equalfile.Options{}) // compare using single mode
        equal, err := cmp.CompareFile("file1", "file2")
 
