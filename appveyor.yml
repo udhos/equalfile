@@ -11,9 +11,8 @@ environment:
 
 clone_folder: c:\gopath\src\github.com\udhos\equalfile
 
-install:
-  - go get github.com/golang/lint/golint
-  - go get honnef.co/go/simple/cmd/gosimple
+# to disable automatic builds
+build: off
 
 build_script:
   - go test -v
