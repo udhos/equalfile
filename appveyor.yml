@@ -11,9 +11,10 @@ environment:
 
 clone_folder: c:\gopath\src\github.com\udhos\equalfile
 
-# to disable automatic builds
+# disable automatic builds
 build: off
 
+# disable default msbuild
 build_script:
   - go test -v
   - go build github.com/udhos/equalfile
