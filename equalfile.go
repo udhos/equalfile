@@ -13,9 +13,9 @@ const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
 const defaultBufSize = 20000
 
 type Options struct {
-	Debug         bool // enable debugging to stdout
-	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
-	MaxSize       int64
+	Debug         bool  // enable debugging to stdout
+	ForceFileRead bool  // prevent shortcut at filesystem level (link, pathname, etc)
+	MaxSize       int64 // prevent forever reading from an infinite reader
 }
 
 type Cmp struct {
