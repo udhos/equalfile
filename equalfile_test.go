@@ -21,10 +21,10 @@ func TestReader1(t *testing.T) {
 	r2 := strings.NewReader("somethingthatlong")
 	equal, err := c.CompareReader(r1, r2)
 	if equal {
-		t.Fatal("CompareReader should returns false")
+		t.Fatal("CompareReader should return false")
 	}
 	if err != nil {
-		fmt.Println(err) // internal failure: readers returned different sizes
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -35,10 +35,10 @@ func TestReader2(t *testing.T) {
 	r2 := strings.NewReader("somethingthatlong")
 	equal, err := c.CompareReader(r1, r2)
 	if equal {
-		t.Fatal("CompareReader should returns false")
+		t.Fatal("CompareReader should return false")
 	}
 	if err != nil {
-		fmt.Println(err) // <nil>
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
