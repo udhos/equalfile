@@ -11,7 +11,7 @@ environment:
 
 clone_folder: c:\gopath\src\github.com\udhos\equalfile
 
-# disable automatic builds
+# disable automatic msbuild builds
 build: off
 
 # disable default msbuild
