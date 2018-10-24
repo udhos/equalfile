@@ -10,7 +10,7 @@ import (
 func TestCompareLimitBroken(t *testing.T) {
 	buf := make([]byte, 1000)
 	compare(t, New(nil, Options{ForceFileRead: true, MaxSize: -1}), "/etc/passwd", "/etc/passwd", expectError)
-	compare(t, New(buf, Options{ForceFileRead: true, MaxSize: 0}), "/etc/passwd", "/etc/passwd", expectEqual) // will switch to 10G default limit
+	compare(t, New(buf, Options{ForceFileRead: true, MaxSize: 0}), "/etc/passwd", "/etc/passwd", expectEqual) // will switch to filesize limit
 	compare(t, New(buf, Options{ForceFileRead: true, MaxSize: 1}), "/etc/passwd", "/etc/passwd", expectError) // will reach 1-byte limit
 	compare(t, New(buf, Options{ForceFileRead: true, MaxSize: 1000000}), "/etc/passwd", "/etc/passwd", expectEqual)
 }

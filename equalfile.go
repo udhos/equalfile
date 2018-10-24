@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
+const defaultMaxSize = 10000000000 // Only the first 10^10 bytes of io.Reader are compared.
 const defaultBufSize = 20000
 
 type Options struct {
@@ -154,6 +154,13 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		if os.SameFile(info1, info2) {
 			return true, nil
 		}
+	}
+
+	// For files, set MaxSize to the initial Stat() size, rather than the
+	// defaultMaxSize.  Growing files will return an error during the
+	// comparison.
+	if c.Opt.MaxSize == 0 {
+		c.Opt.MaxSize = info1.Size()
 	}
 
 	return c.CompareReader(r1, r2)
