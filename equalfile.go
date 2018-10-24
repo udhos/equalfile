@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const defaultMaxSize = 10000000000 // Only the first 10^10 bytes are compared.
+const defaultMaxSize = 10000000000 // Only the first 10^10 bytes of io.Reader are compared.
 const defaultBufSize = 20000
 
 type Options struct {
@@ -46,9 +46,6 @@ func NewMultiple(buf []byte, options Options, h hash.Hash, compareOnMatch bool) 
 		hashMatchCompare: compareOnMatch,
 		hashTable:        map[string]hashSum{},
 		buf:              buf,
-	}
-	if c.Opt.MaxSize == 0 {
-		c.Opt.MaxSize = defaultMaxSize
 	}
 	if c.buf == nil || len(c.buf) == 0 {
 		c.buf = make([]byte, defaultBufSize)
@@ -156,6 +153,17 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
+	// For files, set MaxSize to the initial Stat() size, rather than the
+	// defaultMaxSize.  Growing files will return an error during the
+	// comparison.
+	if c.Opt.MaxSize == 0 {
+		if info1.Size() > 0 {
+			c.Opt.MaxSize = info1.Size()
+		} else {
+			c.Opt.MaxSize = 1
+		}
+	}
+
 	return c.CompareReader(r1, r2)
 }
 
@@ -208,6 +216,10 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 }
 
 func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
+
+	if c.Opt.MaxSize == 0 {
+		c.Opt.MaxSize = defaultMaxSize
+	}
 
 	maxSize := c.Opt.MaxSize
 	if maxSize < 1 {
