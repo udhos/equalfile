@@ -47,9 +47,6 @@ func NewMultiple(buf []byte, options Options, h hash.Hash, compareOnMatch bool) 
 		hashTable:        map[string]hashSum{},
 		buf:              buf,
 	}
-	if c.Opt.MaxSize == 0 {
-		c.Opt.MaxSize = defaultMaxSize
-	}
 	if c.buf == nil || len(c.buf) == 0 {
 		c.buf = make([]byte, defaultBufSize)
 	}
@@ -219,6 +216,10 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 }
 
 func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
+
+	if c.Opt.MaxSize == 0 {
+		c.Opt.MaxSize = defaultMaxSize
+	}
 
 	maxSize := c.Opt.MaxSize
 	if maxSize < 1 {
