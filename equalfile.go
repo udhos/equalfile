@@ -160,7 +160,11 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 	// defaultMaxSize.  Growing files will return an error during the
 	// comparison.
 	if c.Opt.MaxSize == 0 {
-		c.Opt.MaxSize = info1.Size()
+		if info1.Size() > 0 {
+			c.Opt.MaxSize = info1.Size()
+		} else {
+			c.Opt.MaxSize = 1
+		}
 	}
 
 	return c.CompareReader(r1, r2)
