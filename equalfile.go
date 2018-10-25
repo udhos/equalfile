@@ -131,6 +131,17 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		return false, nil
 	}
 
+	// For files, set MaxSize to the initial Stat() size, rather than the
+	// defaultMaxSize.  Growing files will return an error during the
+	// comparison.
+	if c.Opt.MaxSize == 0 {
+		if info1.Size() > 0 {
+			c.Opt.MaxSize = info1.Size()
+		} else {
+			c.Opt.MaxSize = 1
+		}
+	}
+
 	if c.multipleMode() {
 		h1, err1 := c.getHash(path1)
 		if err1 != nil {
@@ -150,17 +161,6 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		// do byte-by-byte comparison
 		if c.Opt.Debug {
 			fmt.Printf("CompareFile(%s,%s): hash match, will compare bytes\n", path1, path2)
-		}
-	}
-
-	// For files, set MaxSize to the initial Stat() size, rather than the
-	// defaultMaxSize.  Growing files will return an error during the
-	// comparison.
-	if c.Opt.MaxSize == 0 {
-		if info1.Size() > 0 {
-			c.Opt.MaxSize = info1.Size()
-		} else {
-			c.Opt.MaxSize = 1
 		}
 	}
 
