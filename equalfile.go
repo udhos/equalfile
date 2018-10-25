@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"math"
 	"os"
 )
 
@@ -70,12 +71,18 @@ func (c *Cmp) getHash(path string) ([]byte, error) {
 	}
 	defer f.Close()
 
+	// c.Opt.MaxSize may not yet be setup, in which case use the max here
+	maxSize := c.Opt.MaxSize
+	if maxSize == 0 {
+		maxSize = math.MaxInt64
+	}
+
 	sum := make([]byte, c.hashType.Size())
 	c.hashType.Reset()
-	n, copyErr := io.CopyN(c.hashType, f, c.Opt.MaxSize)
+	n, copyErr := io.CopyN(c.hashType, f, maxSize)
 	copy(sum, c.hashType.Sum(nil))
 
-	if copyErr == io.EOF && n < c.Opt.MaxSize {
+	if copyErr == io.EOF && n < maxSize {
 		copyErr = nil
 	}
 
