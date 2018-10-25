@@ -100,28 +100,6 @@ func (c *Cmp) multipleMode() bool {
 // CompareFile verifies that files with names path1, path2 have same contents.
 func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 
-	if c.multipleMode() {
-		h1, err1 := c.getHash(path1)
-		if err1 != nil {
-			return false, err1
-		}
-		h2, err2 := c.getHash(path2)
-		if err2 != nil {
-			return false, err2
-		}
-		if !bytes.Equal(h1, h2) {
-			return false, nil // hashes mismatch
-		}
-		// hashes match
-		if !c.hashMatchCompare {
-			return true, nil // accept hash match without byte-by-byte comparison
-		}
-		// do byte-by-byte comparison
-		if c.Opt.Debug {
-			fmt.Printf("CompareFile(%s,%s): hash match, will compare bytes\n", path1, path2)
-		}
-	}
-
 	r1, openErr1 := os.Open(path1)
 	if openErr1 != nil {
 		return false, openErr1
@@ -142,14 +120,36 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		return false, statErr2
 	}
 
-	if info1.Size() != info2.Size() {
-		return false, nil
-	}
-
 	if !c.Opt.ForceFileRead {
 		// shortcut: ask the filesystem: are these files the same? (link, pathname, etc)
 		if os.SameFile(info1, info2) {
 			return true, nil
+		}
+	}
+
+	if info1.Size() != info2.Size() {
+		return false, nil
+	}
+
+	if c.multipleMode() {
+		h1, err1 := c.getHash(path1)
+		if err1 != nil {
+			return false, err1
+		}
+		h2, err2 := c.getHash(path2)
+		if err2 != nil {
+			return false, err2
+		}
+		if !bytes.Equal(h1, h2) {
+			return false, nil // hashes mismatch
+		}
+		// hashes match
+		if !c.hashMatchCompare {
+			return true, nil // accept hash match without byte-by-byte comparison
+		}
+		// do byte-by-byte comparison
+		if c.Opt.Debug {
+			fmt.Printf("CompareFile(%s,%s): hash match, will compare bytes\n", path1, path2)
 		}
 	}
 
