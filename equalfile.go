@@ -126,6 +126,19 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		return false, statErr2
 	}
 
+	// Non-regular files other than symlinks (ie. directories, character
+	// devices, etc) should be excluded from file comparison.  They can
+	// have size 0, while also never returning EOF.  CompareReaders() can
+	// be used instead if it's really necessary.
+	//
+	// Note - Stat() resolved symlinks, so we needn't check for them.
+	if !info1.Mode().IsRegular() {
+		return false, fmt.Errorf("can't compare non-regular file: %v", path1)
+	}
+	if !info2.Mode().IsRegular() {
+		return false, fmt.Errorf("can't compare non-regular file: %v", path2)
+	}
+
 	if !c.Opt.ForceFileRead {
 		// shortcut: ask the filesystem: are these files the same? (link, pathname, etc)
 		if os.SameFile(info1, info2) {
@@ -133,10 +146,8 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	if info1.Mode().IsRegular() && info2.Mode().IsRegular() {
-		if info1.Size() != info2.Size() {
-			return false, nil
-		}
+	if info1.Size() != info2.Size() {
+		return false, nil
 	}
 
 	// If Opt.MaxSize not initialized, set maxSize to the larger of the
