@@ -4,6 +4,7 @@ package equalfile
 
 import (
 	"crypto/sha256"
+	"os"
 	"testing"
 )
 
@@ -66,9 +67,12 @@ func batch(t *testing.T, limit int64, buf []byte) {
 	compare(t, c, "/etc/passwd", "/etc/ERROR", expectError)
 	compare(t, c, "/etc/passwd", "/etc/passwd", expectEqual)
 	compare(t, c, "/etc/passwd", "/etc/group", expectUnequal)
-	compare(t, c, "/dev/null", "/dev/null", expectEqual)
-	compare(t, c, "/dev/urandom", "/dev/urandom", expectUnequal)
+	compare(t, c, "/dev/null", "/dev/null", expectError)
+	compare(t, c, "/dev/urandom", "/dev/urandom", expectError)
 	compare(t, c, "/dev/zero", "/dev/zero", expectError)
+	compareR(t, c, "/dev/null", "/dev/null", expectEqual)
+	compareR(t, c, "/dev/urandom", "/dev/urandom", expectUnequal)
+	compareR(t, c, "/dev/zero", "/dev/zero", expectError)
 }
 
 func batchMultiple(t *testing.T, limit int64, buf []byte) {
@@ -78,14 +82,37 @@ func batchMultiple(t *testing.T, limit int64, buf []byte) {
 	compare(t, c, "/etc/passwd", "/etc/ERROR", expectError)
 	compare(t, c, "/etc/passwd", "/etc/passwd", expectEqual)
 	compare(t, c, "/etc/passwd", "/etc/group", expectUnequal)
-	compare(t, c, "/dev/null", "/dev/null", expectEqual)
-	compare(t, c, "/dev/urandom", "/dev/urandom", expectUnequal)
+	compare(t, c, "/dev/null", "/dev/null", expectError)
+	compare(t, c, "/dev/urandom", "/dev/urandom", expectError)
 	compare(t, c, "/dev/zero", "/dev/zero", expectError)
+	compareR(t, c, "/dev/null", "/dev/null", expectEqual)
+	compareR(t, c, "/dev/urandom", "/dev/urandom", expectUnequal)
+	compareR(t, c, "/dev/zero", "/dev/zero", expectError)
 }
 
 func compare(t *testing.T, c *Cmp, path1, path2 string, expect int) {
 	//t.Logf("compare(%s,%s) limit=%d buf=%d", path1, path2, c.Opt.MaxSize, len(c.buf))
 	equal, err := c.CompareFile(path1, path2)
+	compareErrHandler(t, c, path1, path2, expect, equal, err)
+}
+
+func compareR(t *testing.T, c *Cmp, path1, path2 string, expect int) {
+	//t.Logf("compareR(%s,%s) limit=%d buf=%d", path1, path2, c.Opt.MaxSize, len(c.buf))
+	r1, err := os.Open(path1)
+	if err != nil {
+		t.Fatalf("compareR: couldn't open: %v", path1)
+	}
+	defer r1.Close()
+	r2, err := os.Open(path2)
+	if err != nil {
+		t.Fatalf("compareR: couldn't open: %v", path2)
+	}
+	defer r2.Close()
+	equal, err := c.CompareReader(r1, r1)
+	compareErrHandler(t, c, path1, path2, expect, equal, err)
+}
+
+func compareErrHandler(t *testing.T, c *Cmp, path1, path2 string, expect int, equal bool, err error) {
 	if err != nil {
 		if expect != expectError {
 			t.Errorf("compare: unexpected error: CompareFile(%s,%s,%d,%d): %v", path1, path2, c.Opt.MaxSize, len(c.buf), err)
