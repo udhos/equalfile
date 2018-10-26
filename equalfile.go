@@ -251,12 +251,51 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 
 func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
+	// Preserve error behavior on exceeding MaxSize, even if given readers
+	// are LimitedReaders.
 	if maxSize == 0 {
 		maxSize = defaultMaxSize
 	}
 
 	if maxSize < 1 {
 		return false, fmt.Errorf("nonpositive max size")
+	}
+
+	// Use LimitedReaders to ensure no data beyond MaxSize is used for comparison.
+	var lr1, lr2 io.Reader
+	var checkAfterEOF1 bool
+	var checkAfterEOF2 bool
+
+	tmpLR1, isLR1 := r1.(*io.LimitedReader)
+	tmpLR2, isLR2 := r2.(*io.LimitedReader)
+
+	if isLR1 && isLR2 {
+		// two LimitedReaders... Reduce their limit to maxSize.  Probably it's better
+		// to allow LimitedReader to ignore maxSize.
+		if tmpLR1.N > maxSize {
+			tmpLR1.N = maxSize
+			checkAfterEOF1 = true
+		}
+		if tmpLR2.N > maxSize {
+			tmpLR2.N = maxSize
+			checkAfterEOF2 = true
+		}
+
+		lr1 = tmpLR1
+		lr2 = tmpLR2
+	} else if isLR1 && !isLR2 {
+		lr1 = r1
+		lr2 = io.LimitReader(r2, maxSize)
+		checkAfterEOF2 = true
+	} else if isLR2 && !isLR1 {
+		lr2 = r2
+		lr1 = io.LimitReader(r1, maxSize)
+		checkAfterEOF1 = true
+	} else {
+		lr1 = io.LimitReader(r1, maxSize)
+		lr2 = io.LimitReader(r2, maxSize)
+		checkAfterEOF1 = true
+		checkAfterEOF2 = true
 	}
 
 	buf := c.buf
@@ -275,10 +314,9 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
 	eof1 := false
 	eof2 := false
-	var readSize int64
 
 	for !eof1 && !eof2 {
-		n1, err1 := c.read(r1, buf1)
+		n1, err1 := c.read(lr1, buf1)
 		switch err1 {
 		case io.EOF:
 			eof1 = true
@@ -287,7 +325,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 			return false, err1
 		}
 
-		n2, err2 := c.read(r2, buf2)
+		n2, err2 := c.read(lr2, buf2)
 		switch err2 {
 		case io.EOF:
 			eof2 = true
@@ -298,7 +336,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
 		switch {
 		case n1 < n2:
-			n, errPart := readPartial(c, r1, buf1, n1, n2)
+			n, errPart := readPartial(c, lr1, buf1, n1, n2)
 			switch errPart {
 			case io.EOF:
 				eof1 = true
@@ -308,7 +346,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 			}
 			n1 = n
 		case n2 < n1:
-			n, errPart := readPartial(c, r2, buf2, n2, n1)
+			n, errPart := readPartial(c, lr2, buf2, n2, n1)
 			switch errPart {
 			case io.EOF:
 				eof2 = true
@@ -328,12 +366,6 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 			c.debugf("compareReader: found byte mismatch\n")
 			return false, nil
 		}
-
-		readSize += int64(n1)
-		if readSize > maxSize {
-			c.debugf("compareReader: partial match, but max size exceeded\n")
-			return true, fmt.Errorf("max read size reached")
-		}
 	}
 
 	if !eof1 || !eof2 {
@@ -341,6 +373,35 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 		return false, nil
 	}
 
+	// Verify that the original readers (not the wrapping LimitedReaders)
+	// are both EOF, otherwise return true with an error.  (ie. the files
+	// were equal up to MaxSize, but there was more data unconsumed).
+	if checkAfterEOF1 {
+		return postEOFCheck(c, lr1, buf1[:1])
+	}
+	if checkAfterEOF2 {
+		return postEOFCheck(c, lr2, buf2[:1])
+	}
+
+	return true, nil
+}
+
+// postEOFCheck returns true and also an error if there is more data in a
+// LimitedReader after hitting EOF
+func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
+	tmpLR, isLR := r.(*io.LimitedReader)
+	if !isLR {
+		c.debugf("compareReader: A type assertion ot LimitedReader unexpectedly failed\n")
+		return true, fmt.Errorf("Couldn't cast Reader to LimitedReader: %v", r)
+	}
+
+	// Attempt to read more bytes from the original readers, to determine
+	// if we should return an error for exceeding the MaxSize read limit.
+	n, _ := readPartial(c, tmpLR.R, buf, 0, len(buf))
+	if n > 0 {
+		c.debugf("compareReader: partial match, but max size exceeded\n")
+		return true, fmt.Errorf("max read size reached")
+	}
 	return true, nil
 }
 
