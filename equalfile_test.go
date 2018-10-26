@@ -95,6 +95,84 @@ func TestReader2(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+func TestLimitedReaders(t *testing.T) {
+	debug := os.Getenv("DEBUG") != ""
+	// MaxSize should be ignored.  Set to lowest value (1) to confirm
+	c := New(nil, Options{MaxSize: int64(1), Debug: debug})
+
+	LR := io.LimitReader
+	NR := strings.NewReader
+	var tests = []struct {
+		r1, r2  io.Reader
+		want    bool
+		wantErr bool
+		desc    string
+	}{
+		{r1: LR(NR("wow"), 4), r2: LR(NR("wow"), 4), want: true, desc: ", limit unreached (test 1)"},
+		{r1: LR(NR("woz"), 4), r2: LR(NR("wow"), 4), want: false, desc: ", limit unreached, inputs unequal at end"},
+		{r1: NR("wow"), r2: LR(NR("wow"), 4), want: true, desc: ", limit unreached (test 3)"},
+		{r2: NR("wow"), r1: LR(NR("wow"), 4), want: true, desc: ", limit unreached (test 4)"},
+		{r1: LR(NR("wxy"), 1), r2: LR(NR("wow"), 1), want: true, desc: ", inputs equal up to limit 1"},
+		{r1: LR(NR("wxy"), 2), r2: LR(NR("wow"), 2), want: false, desc: ", inputs unequal at limit 2"},
+		{r1: LR(NR("abc"), 0), r2: LR(NR("wow"), 0), want: true, desc: ", limit 0 w/ unequal inputs"},
+		{r1: NR("wxy"), r2: LR(NR("wow"), 1), want: true, wantErr: true, desc: ", unequal input EOFs"},
+	}
+
+	for _, v := range tests {
+		eq, err := c.CompareReader(v.r1, v.r2) // Should ignore MaxSize
+		if eq != v.want {
+			t.Errorf("CompareReader() got %v expected %v%v", eq, v.want, v.desc)
+		}
+		if !v.wantErr && err != nil {
+			t.Errorf("unexpected error: %v%v", err, v.desc)
+		}
+		if v.wantErr && err == nil {
+			t.Errorf("missing expected error%v", v.desc)
+		}
+	}
+}
+
+func TestMaxSizeReaders(t *testing.T) {
+	debug := os.Getenv("DEBUG") != ""
+
+	var tests = []struct {
+		s1, s2  string
+		bufSize int
+		maxSize int64
+		want    bool
+		wantErr bool
+	}{
+		{s1: "abc", s2: "xyz", bufSize: 2, maxSize: 1, want: false, wantErr: false}, // no letters match
+		{s1: "wbc", s2: "wyz", bufSize: 2, maxSize: 1, want: true, wantErr: true},   // one letter matches
+		{s1: "woz", s2: "wow", bufSize: 2, maxSize: 1, want: true, wantErr: true},   // two letters match
+		{s1: "woz", s2: "wow", bufSize: 2, maxSize: 2, want: true, wantErr: true},   // 2 letters, 2 size
+
+		// Make sure the buffer size doesn't affect the results
+		{s1: "wow", s2: "wow", bufSize: 2, maxSize: 1, want: true, wantErr: true},  // three letters match
+		{s1: "wow", s2: "wow", bufSize: 8, maxSize: 1, want: true, wantErr: true},  // three letters match
+		{s1: "wow", s2: "wow", bufSize: 2, maxSize: 2, want: true, wantErr: true},  // three letters match
+		{s1: "wow", s2: "wow", bufSize: 8, maxSize: 2, want: true, wantErr: true},  // three letters match
+		{s1: "wow", s2: "wow", bufSize: 2, maxSize: 3, want: true, wantErr: false}, // three letters match
+		{s1: "wow", s2: "wow", bufSize: 8, maxSize: 3, want: true, wantErr: false}, // three letters match
+	}
+
+	for _, v := range tests {
+		c := New(make([]byte, v.bufSize), Options{MaxSize: int64(v.maxSize), Debug: debug})
+		eq, err := c.CompareReader(strings.NewReader(v.s1), strings.NewReader(v.s2))
+		if eq != v.want {
+			t.Errorf("CompareReader() got %v expected %v. s1: %v s2: %v, buf: %v, maxSz: %v",
+				eq, v.want, v.s1, v.s2, v.bufSize, v.maxSize)
+		}
+		if !v.wantErr && err != nil {
+			t.Errorf("unexpected error when MaxSize not reached. s1: %v s2: %v, buf: %v, maxSz: %v",
+				v.s1, v.s2, v.bufSize, v.maxSize)
+		}
+		if v.wantErr && err == nil {
+			t.Errorf("missing expected error when MaxSize reached. s1: %v s2: %v, buf: %v, maxSz: %v",
+				v.s1, v.s2, v.bufSize, v.maxSize)
+		}
+	}
+}
 
 type equalThenUnequalReader struct {
 	n            int
