@@ -10,13 +10,14 @@ import (
 	"os"
 )
 
-const defaultMaxSize = 10000000000 // Only the first 10^10 bytes of io.Reader are compared.
+// Only the first 10^10 bytes of io.Reader are compared.  Ignored for io.LimitedReader
+const defaultMaxSize = 10000000000
 const defaultBufSize = 20000
 
 type Options struct {
 	Debug         bool  // enable debugging to stdout
 	ForceFileRead bool  // prevent shortcut at filesystem level (link, pathname, etc)
-	MaxSize       int64 // prevent forever reading from an infinite reader
+	MaxSize       int64 // prevent forever reading from an infinite reader. Ignored when using LimitedReader.
 }
 
 type Cmp struct {
@@ -59,7 +60,7 @@ func New(buf []byte, options Options) *Cmp {
 	return NewMultiple(buf, options, nil, true)
 }
 
-func (c *Cmp) getHash(path string) ([]byte, error) {
+func (c *Cmp) getHash(path string, maxSize int64) ([]byte, error) {
 	h, found := c.hashTable[path]
 	if found {
 		return h.result, h.err
@@ -70,12 +71,6 @@ func (c *Cmp) getHash(path string) ([]byte, error) {
 		return nil, openErr
 	}
 	defer f.Close()
-
-	// c.Opt.MaxSize may not yet be setup, in which case use the max here
-	maxSize := c.Opt.MaxSize
-	if maxSize == 0 {
-		maxSize = math.MaxInt64
-	}
 
 	sum := make([]byte, c.hashType.Size())
 	c.hashType.Reset()
@@ -106,6 +101,10 @@ func (c *Cmp) multipleMode() bool {
 
 // CompareFile verifies that files with names path1, path2 have same contents.
 func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
+
+	if c.Opt.MaxSize < 0 {
+		return false, fmt.Errorf("negative MaxSize")
+	}
 
 	r1, openErr1 := os.Open(path1)
 	if openErr1 != nil {
@@ -140,23 +139,23 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	// For files, set MaxSize to the initial Stat() size, rather than the
-	// defaultMaxSize.  Growing files will return an error during the
-	// comparison.
-	if c.Opt.MaxSize == 0 {
-		if info1.Size() > 0 {
-			c.Opt.MaxSize = info1.Size()
-		} else {
-			c.Opt.MaxSize = defaultMaxSize
+	// If Opt.MaxSize not initialized, set maxSize to the larger of the
+	// filesize or 1. Pass maxSize to getHash to ensure the hash is
+	// computed only up to the user specified MaxSize amount.
+	maxSize := c.Opt.MaxSize
+	if maxSize == 0 {
+		maxSize = info1.Size()
+		if maxSize == 0 {
+			maxSize = 1
 		}
 	}
 
 	if c.multipleMode() {
-		h1, err1 := c.getHash(path1)
+		h1, err1 := c.getHash(path1, maxSize)
 		if err1 != nil {
 			return false, err1
 		}
-		h2, err2 := c.getHash(path2)
+		h2, err2 := c.getHash(path2, maxSize)
 		if err2 != nil {
 			return false, err2
 		}
@@ -173,7 +172,16 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	return c.CompareReader(r1, r2)
+	// Use our maxSize to avoid triggering the defaultMaxSize for files.
+	// We still need to preserve the error returning properties of the
+	// input amount exceeding MaxSize, so we can't use LimitedReader.
+	c.resetDebugging()
+
+	eq, err := c.compareReader(r1, r2, maxSize)
+
+	c.printDebugCompareReader()
+
+	return eq, err
 }
 
 func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
@@ -196,21 +204,29 @@ func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 // CompareReader verifies that two readers provide same content.
 func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 
+	c.resetDebugging()
+
+	equal, err := c.compareReader(r1, r2, c.Opt.MaxSize)
+
+	c.printDebugCompareReader()
+
+	return equal, err
+}
+
+func (c *Cmp) resetDebugging() {
 	if c.Opt.Debug {
 		c.readCount = 0
 		c.readMin = 2000000000
 		c.readMax = 0
 		c.readSum = 0
 	}
+}
 
-	equal, err := c.compareReader(r1, r2)
-
+func (c *Cmp) printDebugCompareReader() {
 	if c.Opt.Debug {
 		fmt.Printf("DEBUG CompareReader(%d,%d): readCount=%d readMin=%d readMax=%d readSum=%d\n",
 			len(c.buf), c.Opt.MaxSize, c.readCount, c.readMin, c.readMax, c.readSum)
 	}
-
-	return equal, err
 }
 
 func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
@@ -224,15 +240,24 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 	return n1, nil
 }
 
-func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
+func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
-	if c.Opt.MaxSize == 0 {
-		c.Opt.MaxSize = defaultMaxSize
-	}
+	var useMaxSize bool
 
-	maxSize := c.Opt.MaxSize
-	if maxSize < 1 {
-		return false, fmt.Errorf("nonpositive max size")
+	_, ok1 := r1.(*io.LimitedReader)
+	_, ok2 := r2.(*io.LimitedReader)
+
+	// Use maxSize if neither Reader is a LimitedReader
+	if !(ok1 || ok2) {
+		// Only use if maxSize can be exceeded
+		useMaxSize = (maxSize < math.MaxInt64)
+		if maxSize == 0 {
+			maxSize = defaultMaxSize
+		}
+
+		if maxSize < 1 {
+			return false, fmt.Errorf("nonpositive max size")
+		}
 	}
 
 	buf := c.buf
@@ -304,7 +329,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
 		}
 
 		readSize += int64(n1)
-		if readSize > maxSize {
+		if useMaxSize && readSize > maxSize {
 			return true, fmt.Errorf("max read size reached")
 		}
 	}
