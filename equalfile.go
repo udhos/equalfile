@@ -134,8 +134,10 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	if info1.Size() != info2.Size() {
-		return false, nil
+	if info1.Mode().IsRegular() && info2.Mode().IsRegular() {
+		if info1.Size() != info2.Size() {
+			return false, nil
+		}
 	}
 
 	// For files, set MaxSize to the initial Stat() size, rather than the
@@ -145,7 +147,7 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		if info1.Size() > 0 {
 			c.Opt.MaxSize = info1.Size()
 		} else {
-			c.Opt.MaxSize = 1
+			c.Opt.MaxSize = defaultMaxSize
 		}
 	}
 
