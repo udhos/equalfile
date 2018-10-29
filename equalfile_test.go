@@ -1,9 +1,12 @@
 package equalfile
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -13,6 +16,46 @@ const (
 	expectEqual   = 1
 	expectUnequal = 2
 )
+
+func cleanupTmpFiles(files []*os.File) {
+	for _, f := range files {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+	}
+}
+
+// Make tmp files each filled with the corresponding bytes of the contents slice.
+func makeTmpFiles(t *testing.T, pat string, contents [][]byte) []*os.File {
+	tmpFiles := []*os.File{}
+	for i, v := range contents {
+		tmpPat := pat + strconv.Itoa(i) + "_*"
+		tmpfile, err := ioutil.TempFile("", tmpPat)
+		if err != nil {
+			cleanupTmpFiles(tmpFiles)
+			t.Fatal("couldn't open tmpfile")
+		}
+		if _, err := tmpfile.Write(v); err != nil {
+			tmpfile.Close()
+			cleanupTmpFiles(tmpFiles)
+			t.Fatal(err)
+		}
+		tmpFiles = append(tmpFiles, tmpfile)
+	}
+	return tmpFiles
+}
+
+// Determine if hash usage is so broken that it allows two arbitrarily
+// different files to compare equal (such as if the hash input is truncated to
+// length zero, or ignored in the hash result).
+func TestCompareBrokenHashMultiple(t *testing.T) {
+	pat := "equalfiles_test_brokenhash"
+	contents := [][]byte{[]byte("a"), []byte("b")}
+	tmpFiles := makeTmpFiles(t, pat, contents)
+	defer cleanupTmpFiles(tmpFiles)
+
+	c := NewMultiple(nil, Options{}, sha256.New(), false) // Matching hash will determine equality
+	compare(t, c, tmpFiles[0].Name(), tmpFiles[1].Name(), expectUnequal)
+}
 
 func TestReader1(t *testing.T) {
 	debug := os.Getenv("DEBUG") != ""
