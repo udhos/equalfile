@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"math"
 	"os"
 )
 
@@ -59,7 +58,7 @@ func New(buf []byte, options Options) *Cmp {
 	return NewMultiple(buf, options, nil, true)
 }
 
-func (c *Cmp) getHash(path string) ([]byte, error) {
+func (c *Cmp) getHash(path string, maxSize int64) ([]byte, error) {
 	h, found := c.hashTable[path]
 	if found {
 		return h.result, h.err
@@ -70,12 +69,6 @@ func (c *Cmp) getHash(path string) ([]byte, error) {
 		return nil, openErr
 	}
 	defer f.Close()
-
-	// c.Opt.MaxSize may not yet be setup, in which case use the max here
-	maxSize := c.Opt.MaxSize
-	if maxSize == 0 {
-		maxSize = math.MaxInt64
-	}
 
 	sum := make([]byte, c.hashType.Size())
 	c.hashType.Reset()
@@ -106,6 +99,10 @@ func (c *Cmp) multipleMode() bool {
 
 // CompareFile verifies that files with names path1, path2 have same contents.
 func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
+
+	if c.Opt.MaxSize < 0 {
+		return false, fmt.Errorf("negative MaxSize")
+	}
 
 	r1, openErr1 := os.Open(path1)
 	if openErr1 != nil {
@@ -140,23 +137,29 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	// For files, set MaxSize to the initial Stat() size, rather than the
-	// defaultMaxSize.  Growing files will return an error during the
-	// comparison.
-	if c.Opt.MaxSize == 0 {
-		if info1.Size() > 0 {
-			c.Opt.MaxSize = info1.Size()
-		} else {
-			c.Opt.MaxSize = defaultMaxSize
+	// If Opt.MaxSize not initialized, set maxSize to an appropriate value
+	// for comparing regular files or streams (pipes, devices), etc.
+	// Pass maxSize to getHash to ensure the hash is computed only up to
+	// the user specified MaxSize amount.
+	maxSize := c.Opt.MaxSize
+	if maxSize == 0 {
+		// If comparing regular to non-regular file, sizes may not
+		// agree...  Use the larger value.
+		maxSize = info1.Size()
+		if maxSize < info2.Size() {
+			maxSize = info2.Size()
+		}
+		if maxSize == 0 { // possible non-regular files
+			maxSize = defaultMaxSize
 		}
 	}
 
 	if c.multipleMode() {
-		h1, err1 := c.getHash(path1)
+		h1, err1 := c.getHash(path1, maxSize)
 		if err1 != nil {
 			return false, err1
 		}
-		h2, err2 := c.getHash(path2)
+		h2, err2 := c.getHash(path2, maxSize)
 		if err2 != nil {
 			return false, err2
 		}
@@ -173,7 +176,16 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 		}
 	}
 
-	return c.CompareReader(r1, r2)
+	// Use our maxSize to avoid triggering the defaultMaxSize for files.
+	// We still need to preserve the error returning properties of the
+	// input amount exceeding MaxSize, so we can't use LimitedReader.
+	c.resetDebugging()
+
+	eq, err := c.compareReader(r1, r2, maxSize)
+
+	c.printDebugCompareReader()
+
+	return eq, err
 }
 
 func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
@@ -196,21 +208,29 @@ func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 // CompareReader verifies that two readers provide same content.
 func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 
+	c.resetDebugging()
+
+	equal, err := c.compareReader(r1, r2, c.Opt.MaxSize)
+
+	c.printDebugCompareReader()
+
+	return equal, err
+}
+
+func (c *Cmp) resetDebugging() {
 	if c.Opt.Debug {
 		c.readCount = 0
 		c.readMin = 2000000000
 		c.readMax = 0
 		c.readSum = 0
 	}
+}
 
-	equal, err := c.compareReader(r1, r2)
-
+func (c *Cmp) printDebugCompareReader() {
 	if c.Opt.Debug {
 		fmt.Printf("DEBUG CompareReader(%d,%d): readCount=%d readMin=%d readMax=%d readSum=%d\n",
 			len(c.buf), c.Opt.MaxSize, c.readCount, c.readMin, c.readMax, c.readSum)
 	}
-
-	return equal, err
 }
 
 func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
@@ -224,13 +244,12 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 	return n1, nil
 }
 
-func (c *Cmp) compareReader(r1, r2 io.Reader) (bool, error) {
+func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
-	if c.Opt.MaxSize == 0 {
-		c.Opt.MaxSize = defaultMaxSize
+	if maxSize == 0 {
+		maxSize = defaultMaxSize
 	}
 
-	maxSize := c.Opt.MaxSize
 	if maxSize < 1 {
 		return false, fmt.Errorf("nonpositive max size")
 	}
