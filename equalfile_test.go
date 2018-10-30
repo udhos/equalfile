@@ -186,3 +186,23 @@ func compareReader(t *testing.T, limit int64, buf []byte, r1, r2 *testReader, ex
 		t.Errorf("compare: r1=%s r2=%s unexpected unequal: CompareReader(%d,%d)", r1.label, r2.label, c.Opt.MaxSize, len(c.buf))
 	}
 }
+
+func compare(t *testing.T, c *Cmp, path1, path2 string, expect int) {
+	//t.Logf("compare(%s,%s) limit=%d buf=%d", path1, path2, c.Opt.MaxSize, len(c.buf))
+	equal, err := c.CompareFile(path1, path2)
+	if err != nil {
+		if expect != expectError {
+			t.Errorf("compare: unexpected error: CompareFile(%s,%s,%d,%d): %v", path1, path2, c.Opt.MaxSize, len(c.buf), err)
+		}
+		return
+	}
+	if equal {
+		if expect != expectEqual {
+			t.Errorf("compare: unexpected equal: CompareFile(%s,%s,%d,%d)", path1, path2, c.Opt.MaxSize, len(c.buf))
+		}
+		return
+	}
+	if expect != expectUnequal {
+		t.Errorf("compare: unexpected unequal: CompareFile(%s,%s,%d,%d)", path1, path2, c.Opt.MaxSize, len(c.buf))
+	}
+}
