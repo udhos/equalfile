@@ -46,6 +46,15 @@ func compareFiles(files []string) bool {
 		}
 	}
 
+	var bufSize int64
+	if str := os.Getenv("BUF_SIZE"); str != "" {
+		var errConv error
+		bufSize, errConv = strconv.ParseInt(str, 10, 64)
+		if errConv != nil {
+			fmt.Printf("Failure parsing BUF_SIZE=[%s]: %v\n", os.Getenv("BUF_SIZE"), errConv)
+		}
+	}
+
 	var noHash bool
 	if str := os.Getenv("NO_HASH"); str != "" {
 		noHash = true
@@ -58,17 +67,23 @@ func compareFiles(files []string) bool {
 
 	if options.Debug {
 		fmt.Printf("ForceFileRead=%v FORCE_FILE_READ=[%s]\n", options.ForceFileRead, os.Getenv("FORCE_FILE_READ"))
-		fmt.Printf("MaxSize=%v MAX_SIZE=[%s]\n", options.MaxSize, os.Getenv("MAX_SIZE"))
+		fmt.Printf("MaxSize=%d MAX_SIZE=[%s]\n", options.MaxSize, os.Getenv("MAX_SIZE"))
+		fmt.Printf("bufSize=%d BUF_SIZE=[%s]\n", bufSize, os.Getenv("BUF_SIZE"))
 		fmt.Printf("noHash=%v NO_HASH=[%s]\n", noHash, os.Getenv("NO_HASH"))
 		fmt.Printf("compareOnMatch=%v COMPARE_ON_MATCH=[%s]\n", compareOnMatch, os.Getenv("COMPARE_ON_MATCH"))
+	}
+
+	var buf []byte
+	if bufSize > 0 {
+		buf = make([]byte, bufSize)
 	}
 
 	var cmp *equalfile.Cmp
 
 	if len(files) > 2 && !noHash {
-		cmp = equalfile.NewMultiple(nil, options, sha256.New(), compareOnMatch)
+		cmp = equalfile.NewMultiple(buf, options, sha256.New(), compareOnMatch)
 	} else {
-		cmp = equalfile.New(nil, options)
+		cmp = equalfile.New(buf, options)
 	}
 
 	match := true

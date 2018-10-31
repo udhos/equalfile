@@ -50,6 +50,9 @@ func NewMultiple(buf []byte, options Options, h hash.Hash, compareOnMatch bool) 
 	if c.buf == nil || len(c.buf) == 0 {
 		c.buf = make([]byte, defaultBufSize)
 	}
+	if c.Opt.Debug {
+		fmt.Printf("New: bufSize=%d\n", len(c.buf))
+	}
 	return c
 }
 
@@ -127,12 +130,18 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 	if !c.Opt.ForceFileRead {
 		// shortcut: ask the filesystem: are these files the same? (link, pathname, etc)
 		if os.SameFile(info1, info2) {
+			if c.Opt.Debug {
+				fmt.Printf("CompareFile(%s,%s): os reported same file\n", path1, path2)
+			}
 			return true, nil
 		}
 	}
 
 	if info1.Mode().IsRegular() && info2.Mode().IsRegular() {
 		if info1.Size() != info2.Size() {
+			if c.Opt.Debug {
+				fmt.Printf("CompareFile(%s,%s): distinct file sizes\n", path1, path2)
+			}
 			return false, nil
 		}
 	}
@@ -319,11 +328,17 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 		}
 
 		if !bytes.Equal(buf1[:n1], buf2[:n2]) {
+			if c.Opt.Debug {
+				fmt.Printf("compareReader: found byte mismatch\n")
+			}
 			return false, nil
 		}
 
 		readSize += int64(n1)
 		if readSize > maxSize {
+			if c.Opt.Debug {
+				fmt.Printf("compareReader: partial match, but max size exceeded\n")
+			}
 			return true, fmt.Errorf("max read size reached")
 		}
 	}

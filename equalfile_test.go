@@ -44,6 +44,16 @@ func makeTmpFiles(t *testing.T, pat string, contents [][]byte) []*os.File {
 	return tmpFiles
 }
 
+func TestPartialDueToMaxSizeLimit(t *testing.T) {
+	pat := "equalfiles_test_partial"
+	contents := [][]byte{[]byte("aaaaaxxxxx"), []byte("aaaaayyyyy")}
+	tmpFiles := makeTmpFiles(t, pat, contents)
+	defer cleanupTmpFiles(tmpFiles)
+
+	c := New([]byte{'1', '2'}, Options{MaxSize: 3})
+	compareExpectErrorAndEqual(t, c, tmpFiles[0].Name(), tmpFiles[1].Name())
+}
+
 // Determine if hash usage is so broken that it allows two arbitrarily
 // different files to compare equal (such as if the hash input is truncated to
 // length zero, or ignored in the hash result).
@@ -204,5 +214,16 @@ func compare(t *testing.T, c *Cmp, path1, path2 string, expect int) {
 	}
 	if expect != expectUnequal {
 		t.Errorf("compare: unexpected unequal: CompareFile(%s,%s,%d,%d)", path1, path2, c.Opt.MaxSize, len(c.buf))
+	}
+}
+
+func compareExpectErrorAndEqual(t *testing.T, c *Cmp, path1, path2 string) {
+	//t.Logf("compare(%s,%s) limit=%d buf=%d", path1, path2, c.Opt.MaxSize, len(c.buf))
+	equal, err := c.CompareFile(path1, path2)
+	if err == nil {
+		t.Errorf("compareExpectErrorAndEqual: unexpected non-error: CompareFile(%s,%s,%d,%d): %v", path1, path2, c.Opt.MaxSize, len(c.buf), err)
+	}
+	if !equal {
+		t.Errorf("compareExpectErrorAndEqual: unexpected unequal: CompareFile(%s,%s,%d,%d)", path1, path2, c.Opt.MaxSize, len(c.buf))
 	}
 }
