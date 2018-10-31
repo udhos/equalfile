@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/udhos/equalfile"
 )
@@ -31,10 +32,41 @@ func compareFiles(files []string) bool {
 		options.Debug = true
 	}
 
+	fmt.Printf("Debug=%v DEBUG=[%s]\n", options.Debug, os.Getenv("DEBUG"))
+
+	if str := os.Getenv("FORCE_FILE_READ"); str != "" {
+		options.ForceFileRead = true
+	}
+
+	if str := os.Getenv("MAX_SIZE"); str != "" {
+		var errConv error
+		options.MaxSize, errConv = strconv.ParseInt(str, 10, 64)
+		if errConv != nil {
+			fmt.Printf("Failure parsing MAX_SIZE=[%s]: %v\n", os.Getenv("MAX_SIZE"), errConv)
+		}
+	}
+
+	var noHash bool
+	if str := os.Getenv("NO_HASH"); str != "" {
+		noHash = true
+	}
+
+	var compareOnMatch bool
+	if str := os.Getenv("COMPARE_ON_MATCH"); str != "" {
+		compareOnMatch = true
+	}
+
+	if options.Debug {
+		fmt.Printf("ForceFileRead=%v FORCE_FILE_READ=[%s]\n", options.ForceFileRead, os.Getenv("FORCE_FILE_READ"))
+		fmt.Printf("MaxSize=%v MAX_SIZE=[%s]\n", options.MaxSize, os.Getenv("MAX_SIZE"))
+		fmt.Printf("noHash=%v NO_HASH=[%s]\n", noHash, os.Getenv("NO_HASH"))
+		fmt.Printf("compareOnMatch=%v COMPARE_ON_MATCH=[%s]\n", compareOnMatch, os.Getenv("COMPARE_ON_MATCH"))
+	}
+
 	var cmp *equalfile.Cmp
 
-	if len(files) > 2 {
-		cmp = equalfile.NewMultiple(nil, options, sha256.New(), true)
+	if len(files) > 2 && !noHash {
+		cmp = equalfile.NewMultiple(nil, options, sha256.New(), compareOnMatch)
 	} else {
 		cmp = equalfile.New(nil, options)
 	}
