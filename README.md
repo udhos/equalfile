@@ -19,6 +19,10 @@ Clone outside of GOPATH:
     git clone https://github.com/udhos/equalfile
     cd equalfile
 
+Run tests:
+
+    go test
+
 Install example application 'equal':
 
     go install ./equal
