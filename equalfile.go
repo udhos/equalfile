@@ -190,6 +190,10 @@ func (c *Cmp) CompareFile(path1, path2 string) (bool, error) {
 func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 	n, err := r.Read(buf)
 
+	if err == io.EOF {
+		c.debugf("read: EOF found\n")
+	}
+
 	if c.Opt.Debug {
 		c.readCount++
 		c.readSum += int64(n)
@@ -316,6 +320,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 		}
 
 		if n1 != n2 {
+			c.debugf("compareReader: distinct buffer sizes\n")
 			return false, nil
 		}
 
@@ -332,6 +337,7 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 	}
 
 	if !eof1 || !eof2 {
+		c.debugf("compareReader: EOF for only one input\n")
 		return false, nil
 	}
 
