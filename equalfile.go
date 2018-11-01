@@ -230,6 +230,10 @@ func (c *Cmp) printDebugCompareReader() {
 		len(c.buf), c.Opt.MaxSize, c.readCount, c.readMin, c.readMax, c.readSum)
 }
 
+// readPartial keeps reading from reader into provided buffer,
+// until buffer size reaches exactly n2. n1 is initial buffer size.
+// useful to ensure we get an specific buffer size from reader,
+// withstanding partial reads.
 func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 	for n1 < n2 {
 		n, err := c.read(r, buf[n1:n2])
