@@ -4,12 +4,19 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/udhos/equalfile"
 )
 
+const (
+	version = "0.0"
+)
+
 func main() {
+	fmt.Printf("equal version %s runtime %v GOMAXPROCS=%d\n", version, runtime.Version(), runtime.GOMAXPROCS(0))
+
 	if len(os.Args) < 3 {
 		fmt.Printf("usage: equal file1 file2 [...fileN]\n")
 		os.Exit(2)
