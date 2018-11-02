@@ -9,13 +9,18 @@ import (
 	"os"
 )
 
-const defaultMaxSize = 10000000000 // Only the first 10^10 bytes of io.Reader are compared.
+// Only the first 10^10 bytes of io.Reader are compared.  Ignored when using io.LimitedReader
+const defaultMaxSize = 10000000000
 const defaultBufSize = 20000
 
 type Options struct {
-	Debug         bool  // enable debugging to stdout
-	ForceFileRead bool  // prevent shortcut at filesystem level (link, pathname, etc)
-	MaxSize       int64 // prevent forever reading from an infinite reader
+	Debug         bool // enable debugging to stdout
+	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
+
+	// MaxSize is a safely limit to prevent forever reading from an infinite
+	// reader.  If left unset, will default to 1OGBytes. Ignored when
+	// CompareReader() is given one or more io.LimitedReader.
+	MaxSize int64
 }
 
 type Cmp struct {
@@ -209,6 +214,10 @@ func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 }
 
 // CompareReader verifies that two readers provide same content.
+//
+// Reading more than MaxSize will return an error (along with the comparison
+// value up to MaxSize bytes), unless one or both Readers are LimitedReaders,
+// in which case MaxSize is ignored.
 func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 
 	c.resetDebugging()
@@ -251,16 +260,6 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 
 func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
-	// Preserve error behavior on exceeding MaxSize, even if given readers
-	// are LimitedReaders.
-	if maxSize == 0 {
-		maxSize = defaultMaxSize
-	}
-
-	if maxSize < 1 {
-		return false, fmt.Errorf("nonpositive max size")
-	}
-
 	// Use LimitedReaders to ensure no data beyond MaxSize is used for comparison.
 	var lr1, lr2 io.Reader
 	var checkAfterEOF1 bool
@@ -270,28 +269,27 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 	tmpLR2, isLR2 := r2.(*io.LimitedReader)
 
 	if isLR1 && isLR2 {
-		// two LimitedReaders... Reduce their limit to maxSize.  Probably it's better
-		// to allow LimitedReader to ignore maxSize.
-		if tmpLR1.N > maxSize {
-			tmpLR1.N = maxSize
-			checkAfterEOF1 = true
-		}
-		if tmpLR2.N > maxSize {
-			tmpLR2.N = maxSize
-			checkAfterEOF2 = true
-		}
-
-		lr1 = tmpLR1
-		lr2 = tmpLR2
+		lr1 = r1
+		lr2 = r2
 	} else if isLR1 && !isLR2 {
 		lr1 = r1
-		lr2 = io.LimitReader(r2, maxSize)
+		lr2 = io.LimitReader(r2, tmpLR1.N)
 		checkAfterEOF2 = true
 	} else if isLR2 && !isLR1 {
 		lr2 = r2
-		lr1 = io.LimitReader(r1, maxSize)
+		lr1 = io.LimitReader(r1, tmpLR2.N)
 		checkAfterEOF1 = true
 	} else {
+		// Neither Reader is a LimitedReader.  Setup LimitedReaders w/ validated
+		// maxSize limit, so that bytes compared will not exceed maxSize.
+		if maxSize == 0 {
+			maxSize = defaultMaxSize
+		}
+
+		if maxSize < 1 {
+			return false, fmt.Errorf("nonpositive max size")
+		}
+
 		lr1 = io.LimitReader(r1, maxSize)
 		lr2 = io.LimitReader(r2, maxSize)
 		checkAfterEOF1 = true
