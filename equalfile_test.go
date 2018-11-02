@@ -212,11 +212,12 @@ func TestCompareReadersMaxSize(t *testing.T) {
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, desc: ", test 4g"},
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 4h"},
 
-		// Try with MaxSize < LimitReader limits, which should trigger an error.
-		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, desc: ", test 5a"},
-		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 5b"},
-		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, desc: ", test 5c"},
-		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 5d"},
+		// Try with MaxSize < LimitReader limits, to show that MaxSize is ignored by
+		// CompareReader() when given one or more LimitReader
+		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 1, desc: ", test 5a"},
+		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 5b"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: false, maxSize: 1, desc: ", test 5c"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 5d"},
 
 		// Remove MaxSize from the equation.  Shouldn't return any errors.  Either
 		// unequal before EOF, or equal up to EOF.
