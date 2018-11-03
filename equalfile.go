@@ -390,14 +390,15 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 // LimitedReader after hitting EOF
 func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
 	tmpLR, isLR := r.(*io.LimitedReader)
-	if !isLR {
-		c.debugf("compareReader: A type assertion ot LimitedReader unexpectedly failed\n")
-		return true, fmt.Errorf("Couldn't cast Reader to LimitedReader: %v", r)
+	if isLR {
+		r = tmpLR.R
+	} else {
+		c.debugf("compareReader: A type assertion of LimitedReader unexpectedly failed\n")
 	}
 
 	// Attempt to read more bytes from the original readers, to determine
 	// if we should return an error for exceeding the MaxSize read limit.
-	n, _ := readPartial(c, tmpLR.R, buf, 0, len(buf))
+	n, _ := readPartial(c, r, buf, 0, len(buf))
 	if n > 0 {
 		c.debugf("compareReader: partial match, but max size exceeded\n")
 		return true, fmt.Errorf("max read size reached")
