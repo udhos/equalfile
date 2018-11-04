@@ -374,14 +374,25 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 	// Verify that the original readers (not the wrapping LimitedReaders)
 	// are both EOF, otherwise return true with an error.  (ie. the files
 	// were equal up to MaxSize, but there was more data unconsumed).
+	//
+	// If both readers are flagged to be checked, ensure we attempt to read
+	// from both, to balance the amount of consumed data.
+	var err1, err2 error
 	if checkAfterEOF1 {
-		return postEOFCheck(c, lr1, buf1[:1])
+		_, err1 = postEOFCheck(c, lr1, buf1[:1])
 	}
 	if checkAfterEOF2 {
-		return postEOFCheck(c, lr2, buf2[:1])
+		_, err2 = postEOFCheck(c, lr2, buf2[:1])
 	}
 
-	return true, nil
+	switch {
+	case err1 != nil:
+		return true, err1
+	case err2 != nil:
+		return true, err2
+	default:
+		return true, nil
+	}
 }
 
 // postEOFCheck returns true and also an error if there is more data in a
