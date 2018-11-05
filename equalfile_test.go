@@ -1,6 +1,7 @@
 package equalfile
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -92,6 +93,154 @@ func TestReader2(t *testing.T) {
 	}
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+type equalThenUnequalReader struct {
+	n            int
+	ValueCount   int
+	Value        byte
+	PostMaxValue byte
+}
+
+func newEqualThenUnequal(N int, value byte, post byte) *equalThenUnequalReader {
+	return &equalThenUnequalReader{ValueCount: N, Value: value, PostMaxValue: post}
+}
+
+func (r *equalThenUnequalReader) Read(p []byte) (n int, err error) {
+	var i int
+	for i < len(p) {
+		if r.n < r.ValueCount {
+			p[i] = r.Value
+		} else {
+			p[i] = r.PostMaxValue
+		}
+		r.n++
+		i++
+	}
+	return i, nil
+}
+
+// This is just a test of a helper used in other tests.
+func TestEqualThenUnequalHelper(t *testing.T) {
+	ER := newEqualThenUnequal
+	var tests = []struct {
+		r    io.Reader
+		want []byte
+	}{
+		{r: ER(0, 'a', 'b'), want: []byte{'b', 'b', 'b'}},
+		{r: ER(1, 'a', 'b'), want: []byte{'a', 'b', 'b'}},
+		{r: ER(2, 'a', 'b'), want: []byte{'a', 'a', 'b'}},
+		{r: ER(3, 'a', 'b'), want: []byte{'a', 'a', 'a'}},
+	}
+	for _, v := range tests {
+		buf := make([]byte, len(v.want))
+		n, err := v.r.Read(buf)
+		if err != nil || n < len(v.want) {
+			t.Fatalf("unexpected Read() failure for equalThenUnequalReader, got n=%v, %v expected %v %v", n, buf, v.want, err)
+		}
+		if !bytes.Equal(buf, v.want) {
+			t.Errorf("equalThenUnequalReader.Read() got %v expected %v", buf, v.want)
+		}
+	}
+}
+
+// This is a test to ensure that reading an io.Reader doesn't include bytes
+// beyond the MaxSize limit in the equality check.  Only bytes up to and
+// including the MaxSize (or until an EOF) are compared for equality.
+//
+// It also confirms the equality result is not dependent on the buffer size,
+// and that using LimitedReader works to restrict errors from exceeding the
+// MaxSize (when MaxSize is not less than the LimitedReader limit).
+func TestCompareReadersMaxSize(t *testing.T) {
+	debug := os.Getenv("DEBUG") != ""
+
+	const MaxUint = ^uint(0)
+	const MaxInt = int(MaxUint >> 1)
+
+	// Produce Readers that are equal up to MaxSize, but unequal after.
+	LR := io.LimitReader
+	ER := newEqualThenUnequal
+	var tests = []struct {
+		r1, r2  io.Reader
+		want    bool
+		wantErr bool
+		maxSize int
+		bufSize int
+		desc    string
+	}{
+		// Since MaxSize == 1, we should get true, since Readers are equal up to the
+		// MaxSize.  Read()s beyond MaxSize shouldn't affect equality result.  May be
+		// dependent on bufSize.
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, desc: ", test 1a"},
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 1b"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'a', 'c'), want: true, wantErr: true, maxSize: 1, desc: ", test 1c"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'a', 'c'), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 1d"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'a', 'c'), want: true, wantErr: true, maxSize: 2, desc: ", test 1e"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'a', 'c'), want: true, wantErr: true, maxSize: 2, bufSize: 2, desc: ", test 1f"},
+		// Verify inequality as well
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, desc: ", test 1g"},
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 1h"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 1, desc: ", test 1i"},
+		{r1: ER(2, 'a', 'b'), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 1j"},
+
+		// Since Readers are unequal before the MaxSize, we should get false, and no
+		// error.  May be dependent on read buffer size.
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 2, desc: ", test 2a"},
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 2b"},
+
+		// Since LR limit <= MaxSize, we should hit EOF before exceeding MaxSize, so no error.
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 1, desc: ", test 3a"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 3b"},
+		{r1: LR(ER(2, 'a', 'b'), 1), r2: LR(ER(2, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 2, desc: ", test 3c"},
+		{r1: LR(ER(2, 'a', 'b'), 1), r2: LR(ER(2, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 3d"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: false, maxSize: 2, desc: ", test 3e"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 3f"},
+		// Check that inequality works also for LimitedReaders (without errors)
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'z', 'b'), 1), want: false, wantErr: false, maxSize: 1, desc: ", test 3g"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'z', 'b'), 1), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 3h"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'z', 'b'), 2), want: false, wantErr: false, maxSize: 2, desc: ", test 3i"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'z', 'b'), 2), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 3j"},
+
+		// Also checked with mixed LimitedReader and non-LimitedReader
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, desc: ", test 4a"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 4b"},
+		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 2, desc: ", test 4c"},
+		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 2, bufSize: 2, desc: ", test 4d"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, desc: ", test 4e"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 4f"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, desc: ", test 4g"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 4h"},
+
+		// Try with MaxSize < LimitReader limits, which should trigger an error.
+		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, desc: ", test 5a"},
+		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 5b"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, desc: ", test 5c"},
+		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 5d"},
+
+		// Remove MaxSize from the equation.  Shouldn't return any errors.  Either
+		// unequal before EOF, or equal up to EOF.
+		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: MaxInt, desc: ", test 6a"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'a', 'c'), 1), want: true, wantErr: false, maxSize: MaxInt, desc: ", test 6b"},
+	}
+
+	for _, v := range tests {
+		var buf []byte
+		if v.bufSize >= 0 {
+			buf = make([]byte, v.bufSize)
+		}
+		c := New(buf, Options{MaxSize: int64(v.maxSize), Debug: debug})
+
+		eq, err := c.CompareReader(v.r1, v.r2)
+		if eq != v.want {
+			t.Errorf("CompareReader() got %v expected %v%v", eq, v.want, v.desc)
+		}
+		if !v.wantErr && err != nil {
+			t.Errorf("unexpected error: %v%v", err, v.desc)
+		}
+		if v.wantErr && err == nil {
+			t.Errorf("expected error, but got none: %v", v.desc)
+		}
 	}
 }
 
