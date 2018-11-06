@@ -260,7 +260,8 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 
 func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
-	// Use LimitedReaders to ensure no data beyond MaxSize is used for comparison.
+	// Use LimitedReaders to ensure no data beyond MaxSize or LimitedReader limit
+	// (when only one LimitedReader is given) other than at most a single byte.
 	var lr1, lr2 io.Reader
 	var checkAfterEOF1 bool
 	var checkAfterEOF2 bool
@@ -371,33 +372,39 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 		return false, nil
 	}
 
-	// Verify that the original readers (not the wrapping LimitedReaders)
-	// are both EOF, otherwise return true with an error.  (ie. the files
-	// were equal up to MaxSize, but there was more data unconsumed).
-	//
-	// If both readers are flagged to be checked, ensure we attempt to read
-	// from both, to balance the amount of consumed data.
-	var err1, err2 error
+	// Check the EOF status of the original readers. If neither was a
+	// LimitedReader, and there is more readable data on either, then
+	// return true with an error for exceeding MaxSize.  If one was a
+	// LimitedReader and has more data, then return false.  If both were
+	// LimitedReaders, then we've reached the desired EOF and return true.
+	if checkAfterEOF1 && checkAfterEOF2 {
+		// If both original readers need to be checked after EOF, then return
+		// 'true' with an error if there is more data in either.
+		eof1 = postEOFCheck(c, lr1, buf1[:1])
+		eof2 = postEOFCheck(c, lr2, buf2[:1])
+		switch {
+		case eof1 && eof2:
+			return true, nil
+		default:
+			c.debugf("compareReader: partial match, but max size exceeded\n")
+			return true, fmt.Errorf("max read size reached")
+		}
+	}
+	// Return false if only one reader is a LimitedReader, and the other
+	// still has data to be read.  Else return true.
 	if checkAfterEOF1 {
-		_, err1 = postEOFCheck(c, lr1, buf1[:1])
+		return postEOFCheck(c, lr1, buf1[:1]), nil
 	}
 	if checkAfterEOF2 {
-		_, err2 = postEOFCheck(c, lr2, buf2[:1])
+		return postEOFCheck(c, lr2, buf2[:1]), nil
 	}
 
-	switch {
-	case err1 != nil:
-		return true, err1
-	case err2 != nil:
-		return true, err2
-	default:
-		return true, nil
-	}
+	return true, nil
 }
 
-// postEOFCheck returns true and also an error if there is more data in a
-// LimitedReader after hitting EOF
-func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
+// postEOFCheck returns false if there is more data in a LimitedReader after
+// hitting EOF
+func postEOFCheck(c *Cmp, r io.Reader, buf []byte) bool {
 	tmpLR, isLR := r.(*io.LimitedReader)
 	if isLR {
 		r = tmpLR.R
@@ -408,11 +415,7 @@ func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
 	// Attempt to read more bytes from the original readers, to determine
 	// if we should return an error for exceeding the MaxSize read limit.
 	n, _ := readPartial(c, r, buf, 0, len(buf))
-	if n > 0 {
-		c.debugf("compareReader: partial match, but max size exceeded\n")
-		return true, fmt.Errorf("max read size reached")
-	}
-	return true, nil
+	return n == 0
 }
 
 func (c *Cmp) debugf(format string, v ...interface{}) {
