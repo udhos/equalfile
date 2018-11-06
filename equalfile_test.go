@@ -115,7 +115,10 @@ func TestLimitedReaders(t *testing.T) {
 		{r1: LR(NR("wxy"), 1), r2: LR(NR("wow"), 1), want: true, desc: ", inputs equal up to limit 1"},
 		{r1: LR(NR("wxy"), 2), r2: LR(NR("wow"), 2), want: false, desc: ", inputs unequal at limit 2"},
 		{r1: LR(NR("abc"), 0), r2: LR(NR("wow"), 0), want: true, desc: ", limit 0 w/ unequal inputs"},
-		{r1: NR("wxy"), r2: LR(NR("wow"), 1), want: true, wantErr: true, desc: ", unequal input EOFs"},
+		{r1: NR("wxy"), r2: LR(NR("wow"), 1), want: false, wantErr: false, desc: ", unequal input EOFs"},
+		{r1: NR("w"), r2: LR(NR("wow"), 1), want: true, wantErr: false, desc: ", equal input EOFs"},
+		{r1: NR("w"), r2: NR("wow"), want: true, wantErr: true, desc: ", unequal input maxsize EOFs w/o LimitedReader"},
+		{r1: NR(""), r2: NR("w"), want: false, wantErr: false, desc: ", unequal input EOFs w/o LimitedReader"},
 	}
 
 	for _, v := range tests {
@@ -267,7 +270,7 @@ func TestCompareReadersMaxSize(t *testing.T) {
 		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 2, desc: ", test 2a"},
 		{r1: ER(1, 'a', 'b'), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 2b"},
 
-		// Since LR limit <= MaxSize, we should hit EOF before exceeding MaxSize, so no error.
+		// Since LimitedReader used for both Readers, MaxSize is ignored
 		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 1, desc: ", test 3a"},
 		{r1: LR(ER(1, 'a', 'b'), 1), r2: LR(ER(1, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 3b"},
 		{r1: LR(ER(2, 'a', 'b'), 1), r2: LR(ER(2, 'a', 'c'), 1), want: true, wantErr: false, maxSize: 2, desc: ", test 3c"},
@@ -280,18 +283,19 @@ func TestCompareReadersMaxSize(t *testing.T) {
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'z', 'b'), 2), want: false, wantErr: false, maxSize: 2, desc: ", test 3i"},
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'z', 'b'), 2), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 3j"},
 
-		// Also checked with mixed LimitedReader and non-LimitedReader
-		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, desc: ", test 4a"},
-		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: true, wantErr: true, maxSize: 1, bufSize: 2, desc: ", test 4b"},
-		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 2, desc: ", test 4c"},
-		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: true, maxSize: 2, bufSize: 2, desc: ", test 4d"},
+		// Also check with mixed LimitedReader and non-LimitedReader (unequal because the
+		// non-LimitedReader in these tests will always return more data than the LimitedReader)
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 1, desc: ", test 4a"},
+		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'a', 'c'), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 4b"},
+		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 2, desc: ", test 4c"},
+		{r1: ER(2, 'a', 'b'), r2: LR(ER(2, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 4d"},
 		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, desc: ", test 4e"},
 		{r1: LR(ER(1, 'a', 'b'), 1), r2: ER(1, 'z', 'b'), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 4f"},
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, desc: ", test 4g"},
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: ER(2, 'z', 'b'), want: false, wantErr: false, maxSize: 2, bufSize: 2, desc: ", test 4h"},
 
 		// Try with MaxSize < LimitReader limits, to show that MaxSize is ignored by
-		// CompareReader() when given one or more LimitReader
+		// CompareReader() when given one or more LimitedReader
 		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 1, desc: ", test 5a"},
 		{r1: LR(ER(1, 'a', 'b'), 2), r2: LR(ER(1, 'a', 'c'), 2), want: false, wantErr: false, maxSize: 1, bufSize: 2, desc: ", test 5b"},
 		{r1: LR(ER(2, 'a', 'b'), 2), r2: LR(ER(2, 'a', 'c'), 2), want: true, wantErr: false, maxSize: 1, desc: ", test 5c"},
