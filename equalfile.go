@@ -9,13 +9,18 @@ import (
 	"os"
 )
 
-const defaultMaxSize = 10000000000 // Only the first 10^10 bytes of io.Reader are compared.
+// Only the first 10^10 bytes of io.Reader are compared.  Ignored when using io.LimitedReader
+const defaultMaxSize = 10000000000
 const defaultBufSize = 20000
 
 type Options struct {
-	Debug         bool  // enable debugging to stdout
-	ForceFileRead bool  // prevent shortcut at filesystem level (link, pathname, etc)
-	MaxSize       int64 // prevent forever reading from an infinite reader
+	Debug         bool // enable debugging to stdout
+	ForceFileRead bool // prevent shortcut at filesystem level (link, pathname, etc)
+
+	// MaxSize is a safely limit to prevent forever reading from an infinite
+	// reader.  If left unset, will default to 1OGBytes. Ignored when
+	// CompareReader() is given one or more io.LimitedReader.
+	MaxSize int64
 }
 
 type Cmp struct {
@@ -209,6 +214,10 @@ func (c *Cmp) read(r io.Reader, buf []byte) (int, error) {
 }
 
 // CompareReader verifies that two readers provide same content.
+//
+// Reading more than MaxSize will return an error (along with the comparison
+// value up to MaxSize bytes), unless one or both Readers are LimitedReaders,
+// in which case MaxSize is ignored.
 func (c *Cmp) CompareReader(r1, r2 io.Reader) (bool, error) {
 
 	c.resetDebugging()
@@ -251,17 +260,8 @@ func readPartial(c *Cmp, r io.Reader, buf []byte, n1, n2 int) (int, error) {
 
 func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 
-	// Preserve error behavior on exceeding MaxSize, even if given readers
-	// are LimitedReaders.
-	if maxSize == 0 {
-		maxSize = defaultMaxSize
-	}
-
-	if maxSize < 1 {
-		return false, fmt.Errorf("nonpositive max size")
-	}
-
-	// Use LimitedReaders to ensure no data beyond MaxSize is used for comparison.
+	// Use LimitedReaders to ensure no data beyond MaxSize or LimitedReader limit
+	// (when only one LimitedReader is given) other than at most a single byte.
 	var lr1, lr2 io.Reader
 	var checkAfterEOF1 bool
 	var checkAfterEOF2 bool
@@ -270,28 +270,27 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 	tmpLR2, isLR2 := r2.(*io.LimitedReader)
 
 	if isLR1 && isLR2 {
-		// two LimitedReaders... Reduce their limit to maxSize.  Probably it's better
-		// to allow LimitedReader to ignore maxSize.
-		if tmpLR1.N > maxSize {
-			tmpLR1.N = maxSize
-			checkAfterEOF1 = true
-		}
-		if tmpLR2.N > maxSize {
-			tmpLR2.N = maxSize
-			checkAfterEOF2 = true
-		}
-
-		lr1 = tmpLR1
-		lr2 = tmpLR2
+		lr1 = r1
+		lr2 = r2
 	} else if isLR1 && !isLR2 {
 		lr1 = r1
-		lr2 = io.LimitReader(r2, maxSize)
+		lr2 = io.LimitReader(r2, tmpLR1.N)
 		checkAfterEOF2 = true
 	} else if isLR2 && !isLR1 {
 		lr2 = r2
-		lr1 = io.LimitReader(r1, maxSize)
+		lr1 = io.LimitReader(r1, tmpLR2.N)
 		checkAfterEOF1 = true
 	} else {
+		// Neither Reader is a LimitedReader.  Setup LimitedReaders w/ validated
+		// maxSize limit, so that bytes compared will not exceed maxSize.
+		if maxSize == 0 {
+			maxSize = defaultMaxSize
+		}
+
+		if maxSize < 1 {
+			return false, fmt.Errorf("nonpositive max size")
+		}
+
 		lr1 = io.LimitReader(r1, maxSize)
 		lr2 = io.LimitReader(r2, maxSize)
 		checkAfterEOF1 = true
@@ -373,24 +372,48 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 		return false, nil
 	}
 
-	// Verify that the original readers (not the wrapping LimitedReaders)
-	// are both EOF, otherwise return true with an error.  (ie. the files
-	// were equal up to MaxSize, but there was more data unconsumed).
+	// Check the EOF status of the original readers. If neither was a
+	// LimitedReader, and there is more readable data on either, then
+	// return true with an error for exceeding MaxSize.  If one was a
+	// LimitedReader and has more data, then return false.  If both were
+	// LimitedReaders, then we've reached the desired EOF and return true.
+	if checkAfterEOF1 && checkAfterEOF2 {
+		// If both original readers need to be checked after EOF, then return
+		// 'true' with an error if there is more data in either.
+		eof1 = postEOFCheck(c, lr1, buf1[:1])
+		eof2 = postEOFCheck(c, lr2, buf2[:1])
+		switch {
+		case eof1 && eof2:
+			return true, nil
+		default:
+			c.debugf("compareReader: partial match, but max size exceeded\n")
+			return true, fmt.Errorf("max read size reached")
+		}
+	}
+	// Return false if only one reader is a LimitedReader, and the other
+	// still has data to be read.  Else return true.
 	if checkAfterEOF1 {
-		return postEOFCheck(c, lr1, buf1[:1])
+		return postEOFCheck(c, lr1, buf1[:1]), nil
 	}
 	if checkAfterEOF2 {
-		return postEOFCheck(c, lr2, buf2[:1])
+		return postEOFCheck(c, lr2, buf2[:1]), nil
 	}
 
 	return true, nil
 }
 
-// postEOFCheck returns true and also an error if there is more data in a
-// LimitedReader after hitting EOF
-func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
+// postEOFCheck returns false if there is more data in a LimitedReader after
+// hitting EOF
+func postEOFCheck(c *Cmp, r io.Reader, buf []byte) bool {
 	tmpLR, isLR := r.(*io.LimitedReader)
 	if isLR {
+		// If the limit wasn't reached, then we don't need to check for
+		// more data after the EOF
+		if tmpLR.N > 0 {
+			return true
+		}
+
+		// Use the internal Reader for checking for more data
 		r = tmpLR.R
 	} else {
 		c.debugf("compareReader: A type assertion of LimitedReader unexpectedly failed\n")
@@ -399,11 +422,7 @@ func postEOFCheck(c *Cmp, r io.Reader, buf []byte) (bool, error) {
 	// Attempt to read more bytes from the original readers, to determine
 	// if we should return an error for exceeding the MaxSize read limit.
 	n, _ := readPartial(c, r, buf, 0, len(buf))
-	if n > 0 {
-		c.debugf("compareReader: partial match, but max size exceeded\n")
-		return true, fmt.Errorf("max read size reached")
-	}
-	return true, nil
+	return n == 0
 }
 
 func (c *Cmp) debugf(format string, v ...interface{}) {
