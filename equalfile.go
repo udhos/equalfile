@@ -407,6 +407,13 @@ func (c *Cmp) compareReader(r1, r2 io.Reader, maxSize int64) (bool, error) {
 func postEOFCheck(c *Cmp, r io.Reader, buf []byte) bool {
 	tmpLR, isLR := r.(*io.LimitedReader)
 	if isLR {
+		// If the limit wasn't reached, then we don't need to check for
+		// more data after the EOF
+		if tmpLR.N > 0 {
+			return true
+		}
+
+		// Use the internal Reader for checking for more data
 		r = tmpLR.R
 	} else {
 		c.debugf("compareReader: A type assertion of LimitedReader unexpectedly failed\n")
