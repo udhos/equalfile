@@ -43,7 +43,7 @@ type hashSum struct {
 	err    error
 }
 
-// New creates Cmp for multiple comparison mode.
+// NewMultiple creates Cmp for multiple comparison mode.
 func NewMultiple(buf []byte, options Options, h hash.Hash, compareOnMatch bool) *Cmp {
 	c := &Cmp{
 		Opt:              options,
