@@ -12,7 +12,7 @@ Equalfile is a pure Go package for comparing files.
 Install
 =======
 
-## Recipe with Modules (since Go 1.11)
+## Recipe with Modules (Go 1.11 or higher)
 
 Clone outside of GOPATH:
 
@@ -33,11 +33,6 @@ Run example application:
 
 ## Recipe without Modules (before Go 1.11)
 
-Set up GOPATH as usual:
-
-    export GOPATH=$HOME/go
-    mkdir $GOPATH
-
 Get equalfile package:
 
     go get github.com/udhos/equalfile
@@ -48,7 +43,7 @@ Install example application 'equal':
 
 Run example application:
 
-    $GOPATH/bin/equal
+    ~/go/bin/equal
 
 Usage
 =====
