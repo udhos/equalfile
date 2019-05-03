@@ -3,10 +3,11 @@
 src=`find . -type f | egrep '\.go$'`
 
 gofmt -s -w $src
-go tool vet $src
+go vet .
+go vet ./equal
 go tool fix $src
-go install github.com/udhos/equalfile
-go install github.com/udhos/equalfile/equal
+go install .
+go install ./equal
 
 # go get honnef.co/go/simple/cmd/gosimple
 s=$GOPATH/bin/gosimple
